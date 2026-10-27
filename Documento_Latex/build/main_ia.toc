@@ -1,0 +1,50 @@
+\babel@toc {spanish}{}\relax 
+\contentsline {section}{\numberline {1}Introducción}{2}{section.1}%
+\contentsline {section}{\numberline {2}Mediciones y datos}{3}{section.2}%
+\contentsline {subsection}{\numberline {2.1}Estructura de los datos}{3}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2.2}Relación con el modelo}{4}{subsection.2.2}%
+\contentsline {section}{\numberline {3}Consideraciones físicas}{4}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Sistema coordenado}{5}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}Hipótesis del modelo}{5}{subsection.3.2}%
+\contentsline {section}{\numberline {4}Ruido en las mediciones}{5}{section.4}%
+\contentsline {section}{\numberline {5}Modelo físico}{6}{section.5}%
+\contentsline {subsection}{\numberline {5.1}Fuerzas de la banda y de los cojinetes}{7}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}Balance de fuerzas}{8}{subsection.5.2}%
+\contentsline {subsection}{\numberline {5.3}Balance de momentos}{8}{subsection.5.3}%
+\contentsline {section}{\numberline {6}Cinemática del eje y ecuaciones de movimiento}{9}{section.6}%
+\contentsline {subsection}{\numberline {6.1}Coordenadas generalizadas y cinemática}{9}{subsection.6.1}%
+\contentsline {subsection}{\numberline {6.2}Fuerzas}{10}{subsection.6.2}%
+\contentsline {subsection}{\numberline {6.3}Ecuaciones de traslación}{10}{subsection.6.3}%
+\contentsline {subsection}{\numberline {6.4}Ecuaciones de rotación}{11}{subsection.6.4}%
+\contentsline {subsection}{\numberline {6.5}Ecuaciones desarrolladas}{11}{subsection.6.5}%
+\contentsline {subsection}{\numberline {6.6}Forma matricial}{11}{subsection.6.6}%
+\contentsline {section}{\numberline {7}Adimensionamiento y reducción modal}{12}{section.7}%
+\contentsline {subsection}{\numberline {7.1}Adimensionamiento}{12}{subsection.7.1}%
+\contentsline {subsection}{\numberline {7.2}Normalización estadística}{13}{subsection.7.2}%
+\contentsline {subsection}{\numberline {7.3}Problema de eigenvalores}{14}{subsection.7.3}%
+\contentsline {subsection}{\numberline {7.4}Amortiguamiento proporcional}{14}{subsection.7.4}%
+\contentsline {subsection}{\numberline {7.5}Ecuación reducida}{15}{subsection.7.5}%
+\contentsline {section}{\numberline {8}Modelo de pronóstico}{15}{section.8}%
+\contentsline {subsection}{\numberline {8.1}Forma de primer orden}{15}{subsection.8.1}%
+\contentsline {subsection}{\numberline {8.2}Solución exacta en cada intervalo}{15}{subsection.8.2}%
+\contentsline {subsection}{\numberline {8.3}Propagador por modo}{16}{subsection.8.3}%
+\contentsline {subsection}{\numberline {8.4}Pronóstico}{16}{subsection.8.4}%
+\contentsline {subsection}{\numberline {8.5}Alcance del pronóstico}{16}{subsection.8.5}%
+\contentsline {section}{\numberline {9}Operador de observación}{17}{section.9}%
+\contentsline {subsection}{\numberline {9.1}Aceleraciones en los cojinetes}{17}{subsection.9.1}%
+\contentsline {subsection}{\numberline {9.2}Aceleraciones en función del estado modal}{17}{subsection.9.2}%
+\contentsline {subsection}{\numberline {9.3}Rango de $H$ y observabilidad}{18}{subsection.9.3}%
+\contentsline {section}{\numberline {10}Asimilación de datos 3D-Var}{18}{section.10}%
+\contentsline {subsection}{\numberline {10.1}Planteamiento}{18}{subsection.10.1}%
+\contentsline {subsection}{\numberline {10.2}Función de costo}{19}{subsection.10.2}%
+\contentsline {subsection}{\numberline {10.3}Solución en forma cerrada}{19}{subsection.10.3}%
+\contentsline {subsection}{\numberline {10.4}Especificación de $R_o$ y $B_b$}{20}{subsection.10.4}%
+\contentsline {subsection}{\numberline {10.5}Algoritmo}{20}{subsection.10.5}%
+\contentsline {section}{\numberline {11}Estimación de parámetros}{20}{section.11}%
+\contentsline {subsection}{\numberline {11.1}Parámetros}{21}{subsection.11.1}%
+\contentsline {subsection}{\numberline {11.2}Vector de control y pronóstico}{21}{subsection.11.2}%
+\contentsline {subsection}{\numberline {11.3}Operador de observación}{21}{subsection.11.3}%
+\contentsline {subsection}{\numberline {11.4}Distribución a priori}{22}{subsection.11.4}%
+\contentsline {subsection}{\numberline {11.5}Función de costo y solución}{22}{subsection.11.5}%
+\contentsline {subsection}{\numberline {11.6}Algoritmo}{22}{subsection.11.6}%
+\contentsline {subsection}{\numberline {11.7}Identificabilidad}{23}{subsection.11.7}%

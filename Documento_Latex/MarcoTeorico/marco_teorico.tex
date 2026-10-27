@@ -1,0 +1,685 @@
+\section{Introducción}
+
+El objetivo de este trabajo es desarrollar un esquema de asimilación de datos para predecir el momento adecuado para realizar el mantenimiento de unos cojinetes. Para ello, se parte de un modelo físico basado en la dinámica del cuerpo rígido.
+
+El modelo dinámico obtenido se emplea como modelo de pronóstico dentro del esquema de asimilación de datos mediante el método 3D-Var.
+
+
+El modelo propuesto está basado en los datos del \emph{IMS Bearing Dataset} de la NASA, correspondientes a 
+una máquina en la que se midieron las aceleraciones de los cojinetes\footnote{\url{https://data.nasa.gov/dataset/ims-bearings}}.
+
+\section{Medicciones y datos}
+Four bearings were installed on a shaft. The rotation speed was kept constant at 2000 RPM by an AC 
+motor coupled to the shaft via rub belts.  A radial load of 6000 lbs is applied onto the shaft and bearing 
+by a spring mechanism. All bearings are force lubricated. 
+Rexnord ZA-2115 double row bearings were installed on the shaft as shown in Figure 1. PCB 353B33 
+High Sensitivity Quartz ICP accelerometers were installed on the bearing housing (two accelerometers 
+for each bearing [x- and y-axes] for data set 1, one accelerometer for each bearing for data sets 2 and 3). 
+Sensor placement is also shown in Figure 1. All failures occurred after exceeding designed life time of 
+the bearing which is more than 100 million revolutions.
+Data Structure 
+Three (3) data sets are included in the data packet (IMS-Rexnord Bearing Data.zip). Each data set 
+describes a test-to-failure experiment. Each data set consists of individual files that are 1-second 
+vibration signal snapshots recorded at specific intervals. Each file consists of 20,480 points with the 
+sampling rate set at 20 kHz. The file name indicates when the data was collected. Each record (row) in 
+the data file is a data point. Data collection was facilitated by NI DAQ Card 6062E. Larger intervals of 
+time stamps (showed in file names) indicate resumption of the experiment in the next working day. 
+Set No. 1:
+Recording Duration:  
+No. of Files: 
+No. of Channels:  
+Channel Arrangement:  
+File Recording Interval:  
+File Format:  
+Description: 
+Set No. 2:
+Recording Duration:  
+No. of Files: 
+No. of Channels:  
+Channel Arrangement:  
+File Recording Interval:  
+File Format:  
+Description: 
+Set No. 3
+Recording Duration:  
+No. of Files: 
+No. of Channels:  
+Channel Arrangement:  
+File Recording Interval:  
+File Format:  
+Description: 
+Reference Paper: 
+October 22, 2003 12:06:24 to November 25, 2003 23:39:56 
+2,156 
+8  
+Bearing 1 – Ch 1&2; Bearing 2 – Ch 3&4;  
+Bearing 3 – Ch 5&6; Bearing 4 – Ch 7&8. 
+Every 10 minutes (except the first 43 files were taken every 5 minutes) 
+ASCII 
+At the end of the test-to-failure experiment, inner race defect occurred in 
+bearing 3 and roller element defect in bearing 4. 
+February 12, 2004 10:32:39 to February 19, 2004 06:22:39 
+984 
+4 
+Bearing 1 – Ch 1; Bearing2 – Ch 2; Bearing3 – Ch3; Bearing 4 – Ch 4. 
+Every 10 minutes 
+ASCII 
+At the end of the test-to-failure experiment, outer race failure occurred in 
+bearing 1. 
+March 4, 2004 09:27:46 to April 4, 2004 19:01:57 
+4,448 
+4 
+Bearing1 – Ch 1; Bearing2 – Ch 2; Bearing3 – Ch3; Bearing4 – Ch4; 
+Every 10 minutes 
+ASCII 
+At the end of the test-to-failure experiment, outer race failure occurred in 
+bearing 3.
+
+\section{Consideraciones físicas}
+
+Se considera un banco de pruebas compuesto por dos ejes. El eje del motor se denotará por $E_1$, mientras que el 
+eje soportado por los cojinetes se denotará por $E_2$. Ambos ejes se encuentran acoplados mediante una banda de transmisión.
+
+La banda será modelada mediante un sistema equivalente resorte--amortiguador, el cual representa el comportamiento 
+elástico y disipativo del mecanismo de transmisión. Este elemento equivalente se denotará por $B_1$.
+
+El eje $E_2$ está soportado por cuatro cojinetes, identificados como $C_1$, $C_2$, $C_3$ y $C_4$. Las distancias 
+entre los distintos componentes del sistema se representarán mediante los parámetros geométricos $L_1,\ldots,L_5$.
+
+\section{Ruido en las mediciones}
+
+Cada cojinete cuenta con acelerómetros instalados que registran las aceleraciones en las direcciones $y$ e $z$. 
+Estas mediciones constituyen la información experimental utilizada para la identificación de parámetros y la validación 
+del modelo físico.
+
+Asimismo, se considera que las mediciones se encuentran afectadas por ruido proveniente del sistema de adquisición de 
+datos y de perturbaciones inherentes al proceso de medición.
+
+\section{Modelo físico}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.65\linewidth]{C:/Users/chris/OneDrive/Documentos/GitHub/MangoLabs/proyecto_2/Documento_Latex/Imagenes/D2.png}
+    \caption{Diagrama fisico simplificado de la maquina}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.65\linewidth]{C:/Users/chris/OneDrive/Documentos/GitHub/MangoLabs/proyecto_2/Documento_Latex/Imagenes/D1.png}
+    \caption{Diagrama de fuerza del eje 2}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.65\linewidth]{C:/Users/chris/OneDrive/Documentos/GitHub/MangoLabs/proyecto_2/Documento_Latex/Imagenes/D3.png}
+    \caption{Diagrama de fuerza del eje 1}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.65\linewidth]{C:/Users/chris/OneDrive/Documentos/GitHub/MangoLabs/proyecto_2/Documento_Latex/Imagenes/D4.png}
+    \caption{Diagrama de fuerza de la banda}
+\end{figure}
+
+El interés se centra en el estudio de la dinámica del eje $E_2$, debido a que los cojinetes constituyen los componentes 
+donde ocurren los modos de falla analizados en este trabajo.
+
+La fuerza transmitida por la banda al eje $E_2$ no es conocida explícitamente. En consecuencia, la banda será modelada 
+como un sistema equivalente resorte--amortiguador ($B_1$). Además, se asumirá que la masa de la banda es despreciable 
+respecto a la masa del sistema, por lo que la fuerza transmitida podrá representarse mediante
+
+\[
+F_b(t)=C_b\,\dot{\mathbf r}_{E_2/E_1}(t)+R_b\,\mathbf r_{E_2/E_1}(t),
+\]
+donde $\mathbf r_{E_2/E_1}$ es el vector posición de $E_2$ respecto de $E_1$, y $C_b$, $R_b$ representan los coeficientes 
+equivalentes de amortiguamiento y rigidez de la banda, respectivamente.
+
+De forma análoga, cada cojinete se modela como un elemento resorte--amortiguador:
+
+\[
+\mathbf F_{C_i}=R_i\,\mathbf x_i+C_i\,\dot{\mathbf x}_i,
+\qquad i=1,2,3,4,
+\]
+donde $R_i$ y $C_i$ son los coeficientes de rigidez y amortiguamiento equivalentes del cojinete $C_i$.
+
+Aplicando la segunda ley de Newton al eje $E_2$,
+
+\[
+\sum \vec F = m\vec a,
+\]
+
+se obtiene
+
+\begin{align*}
+&\langle 0,-F_b,-m g\rangle
++\langle F_{C_{1_x}},F_{C_{1_y}},F_{C_{1_z}}\rangle
++\langle F_{C_{2_x}},F_{C_{2_y}}-F_1,F_{C_{2_z}}\rangle\\
+&+\langle F_{C_{3_x}},F_{C_{3_y}}-F_2,F_{C_{3_z}}\rangle
++\langle F_{C_{4_x}},F_{C_{4_y}},F_{C_{4_z}}\rangle
+=m\,\ddot{\mathbf r}_{E_2},
+\end{align*}
+donde $m$ es la masa del eje $E_2$, y $F_1$, $F_2$ son las fuerzas de excitación (desbalance) aplicadas sobre los cojinetes $C_2$ y $C_3$, respectivamente.
+
+De manera análoga, el equilibrio dinámico de momentos está dado por
+
+\[
+\sum \vec M = I\vec\alpha,
+\]
+
+tomando como punto de referencia el cojinete $C_4$:
+
+\[
+-\mathbf r_b\times\mathbf F_b
++\mathbf r_{C_1}\times\mathbf F_{C_1}
++\mathbf r_{C_2}\times(\mathbf F_{C_2}-\mathbf F_1)
++\mathbf r_{C_3}\times(\mathbf F_{C_3}-\mathbf F_2)
++\mathbf r_{C_4}\times\mathbf F_{C_4}
++\mathbf r_{cent}\times\mathbf F_{E_2}
+= I_{E_2}\,\boldsymbol\alpha,
+\]
+donde $\mathbf F_{E_2}=\langle0,0,-m g\rangle$ es el peso del eje.
+
+El producto cruz general es:
+\[
+\begin{vmatrix}
+\mathbf i & \mathbf j & \mathbf k\\
+r_x & r_y & r_z\\
+F_x & F_y & F_z
+\end{vmatrix}
+=(r_yF_z-r_zF_y)\,\mathbf i-(r_xF_z-r_zF_x)\,\mathbf j+(r_xF_y-r_yF_x)\,\mathbf k.
+\]
+
+Dado que la fuerza en la dirección $x$ es despreciable frente a las fuerzas en $y$ y $z$, y que $r_y$, $r_z$ son despreciables
+ frente a $r_x$ (es decir, $F_x\approx r_y\approx r_z\approx0$), el modelo se simplifica a:
+
+\[
+\begin{vmatrix}
+\mathbf i & \mathbf j & \mathbf k\\
+r_x & 0 & 0\\
+0 & F_y & F_z
+\end{vmatrix}
+=-(r_xF_z)\,\mathbf j+(r_xF_y)\,\mathbf k.
+\]
+
+Para $\mathbf r_{cent}\times\mathbf F_{E_2}$:
+\[
+\begin{vmatrix}
+\mathbf i & \mathbf j & \mathbf k\\
+r_x & 0 & 0\\
+0 & 0 & -m g
+\end{vmatrix}
+=(r_x\,m\,g)\,\mathbf j.
+\]
+
+Tomando el eje $E_2$ como un cilindro sólido y realizando el análisis de momentos respecto al extremo $C_4$, el tensor de 
+inercia es:
+\[
+I_y=I_z=m\left(\frac14 r^2+\frac13 l^2\right),\qquad
+I_x=\frac{m}{2}r^2.
+\]
+
+La aceleración angular en $x$ se mantiene nula por diseño; en $y$, $z$ está determinada por las vibraciones del sistema:
+\[
+\boldsymbol\alpha=\langle 0,\,\alpha_y,\,\alpha_z\rangle.
+\]
+
+El producto $I\boldsymbol\alpha$ resulta:
+\[
+\begin{bmatrix}
+\frac{m}{2}r^2 & 0 & 0\\
+0 & m\left(\frac14 r^2+\frac13 l^2\right) & 0\\
+0 & 0 & m\left(\frac14 r^2+\frac13 l^2\right)
+\end{bmatrix}
+\begin{bmatrix}0\\ \alpha_y\\ \alpha_z\end{bmatrix}
+= m\left(\frac14 r^2+\frac13 l^2\right)\langle0,\,\alpha_y,\,\alpha_z\rangle.
+\]
+
+Sustituyendo en la ecuación de momentos:
+\begin{align*}
+&(r_{bx}F_{bz})\,\mathbf j-(r_{bx}F_{by})\,\mathbf k\\
+&-(r_{C_1x}F_{C_1z})\,\mathbf j+(r_{C_1x}F_{C_1y})\,\mathbf k\\
+&-\big(r_{C_2x}(F_{C_2z})\big)\,\mathbf j+\big(r_{C_2x}(F_{C_2y}-F_1)\big)\,\mathbf k\\
+&-\big(r_{C_3x}(F_{C_3z})\big)\,\mathbf j+\big(r_{C_3x}(F_{C_3y}-F_2)\big)\,\mathbf k\\
+&-(r_{C_4x}F_{C_4z})\,\mathbf j+(r_{C_4x}F_{C_4y})\,\mathbf k\\
+&+(r_x\,m\,g)\,\mathbf j\\
+=\;&m\left(\frac14 r^2+\frac13 l^2\right)\alpha_y\,\mathbf j
++ m\left(\frac14 r^2+\frac13 l^2\right)\alpha_z\,\mathbf k.
+\end{align*}
+
+Para simplificar la notación, se definen las siguientes distancias acumuladas:
+\[
+L_{2:5}=L_2+L_3+L_4+L_5,\qquad
+L_{3:5}=L_3+L_4+L_5,\qquad
+L_{4:5}=L_4+L_5.
+\]
+
+\section{Cinemática del eje y ecuaciones de movimiento}
+
+Se definen las coordenadas generalizadas del eje $E_2$: las traslaciones $y(t)$, $z(t)$ del centro de masa, y las rotaciones angulares $\theta_y(t)$, $\theta_z(t)$, con
+\[
+\alpha_y=\ddot\theta_y,\qquad \alpha_z=\ddot\theta_z.
+\]
+
+Asumiendo que $E_2$ es rígido entre cojinetes y que las rotaciones son pequeñas, el desplazamiento en cada cojinete $C_i$, ubicado a una distancia $r_{C_ix}$ del centro de masa a lo largo del eje $x$, está dado por
+
+\[
+y_{C_i}(t)=y(t)+r_{C_ix}\,\theta_z(t),\qquad
+z_{C_i}(t)=z(t)-r_{C_ix}\,\theta_y(t),
+\]
+
+y de forma análoga para las velocidades,
+
+\[
+\dot y_{C_i}=\dot y+r_{C_ix}\dot\theta_z,\qquad
+\dot z_{C_i}=\dot z-r_{C_ix}\dot\theta_y.
+\]
+
+Sustituyendo en el modelo de cojinete,
+
+\[
+F_{C_iy}=R_i\big(y+r_{C_ix}\theta_z\big)+C_i\big(\dot y+r_{C_ix}\dot\theta_z\big),
+\]
+\[
+F_{C_iz}=R_i\big(z-r_{C_ix}\theta_y\big)+C_i\big(\dot z-r_{C_ix}\dot\theta_y\big).
+\]
+
+De forma análoga, la fuerza de la banda actúa en el punto $r_{bx}$:
+\[
+F_{by}=C_b\big(\dot y+r_{bx}\dot\theta_z\big)+R_b\big(y+r_{bx}\theta_z\big),
+\qquad F_{bz}=0.
+\]
+
+\subsection{Ecuación de traslación}
+
+Sustituyendo en $\sum\vec F=m\vec a$ (componentes $y$, $z$):
+
+\[
+m\ddot y=-F_{by}+\sum_{i=1}^4 F_{C_iy}-F_1-F_2,
+\]
+\[
+m\ddot z=\sum_{i=1}^4 F_{C_iz}-mg.
+\]
+
+\subsection{Ecuación de rotación}
+
+Sustituyendo en la ecuación de momentos ya simplificada:
+
+\[
+m\left(\tfrac14 r^2+\tfrac13 l^2\right)\alpha_y
+=r_{bx}F_{bz}-\sum_{i=1}^4 r_{C_ix}F_{C_iz}+r_xmg,
+\]
+\[
+m\left(\tfrac14 r^2+\tfrac13 l^2\right)\alpha_z
+=-r_{bx}F_{by}+\sum_{i=1}^4 r_{C_ix}F_{C_iy}-r_{C_2x}F_1-r_{C_3x}F_2.
+\]
+
+Al sustituir $F_{C_iz}$, $F_{C_iy}$, $F_{by}$ y pasar todo a la izquierda (forma $M\ddot q+C\dot q+Kq=f$), los términos que dependen de $\dot\theta_y,\theta_y$ (fila $\theta_y$) y de $\dot y,\dot\theta_z,y,\theta_z$ (fila $\theta_z$) quedan con signo contrario al que tenías, porque venían del lado derecho de la igualdad.
+
+
+\subsection{Forma matricial}
+
+Definiendo el vector de estado $\mathbf q(t)=\big[y,\;z,\;\theta_y,\;\theta_z\big]^\top$ y $I_t=m\left(\tfrac14 r^2+\tfrac13 l^2\right)$, el sistema se escribe como
+
+\[
+\mathbf M\ddot{\mathbf q}+\mathbf C\dot{\mathbf q}+\mathbf K\mathbf q=\mathbf f(t),
+\]
+
+con
+
+\[
+\mathbf C=\begin{bmatrix}
+C_b-\sum_i C_i & 0 & 0 & C_b r_{bx}-\sum_i C_i r_{C_ix}\\[2pt]
+0 & -\sum_i C_i & \sum_i C_i r_{C_ix} & 0\\[2pt]
+0 & \sum_i C_i r_{C_ix} & -\sum_i C_i r_{C_ix}^2 & 0\\[2pt]
+C_b r_{bx}-\sum_i C_i r_{C_ix} & 0 & 0 & C_br_{bx}^2-\sum_i C_i r_{C_ix}^2
+\end{bmatrix},
+\]
+
+\[
+\mathbf K=\begin{bmatrix}
+R_b-\sum_i R_i & 0 & 0 & R_b r_{bx}-\sum_i R_i r_{C_ix}\\[2pt]
+0 & -\sum_i R_i & \sum_i R_i r_{C_ix} & 0\\[2pt]
+0 & \sum_i R_i r_{C_ix} & -\sum_i R_i r_{C_ix}^2 & 0\\[2pt]
+R_b r_{bx}-\sum_i R_i r_{C_ix} & 0 & 0 & R_br_{bx}^2-\sum_i R_i r_{C_ix}^2
+\end{bmatrix},
+\]
+
+\[
+\mathbf f(t)=\begin{bmatrix} -F_1-F_2\\ -mg\\ r_xmg\\ -r_{C_2x}F_1-r_{C_3x}F_2\end{bmatrix}.
+\]
+
+Las sumas $\sum_i$ recorren $i=1,2,3,4$, y las distancias $r_{C_ix}$ y $r_{bx}$ se expresan en términos de $L_1,\ldots,L_5$ según la ubicación geométrica de cada componente respecto al centro de masa.
+
+\section{adimencionamiento de la sistema dinamico}
+definimos $\tau=w_0 t$ y una matriz $S_q$
+\[
+\begin{bmatrix}
+L \; & 0 \; & 0 \; & 0 \\
+0 \; & L \; & 0 \; & 0 \\
+0 \; & 0 \; & 1 \; & 0 \\
+0 \; & 0 \; & 0 \; & 1 \\
+\end{bmatrix}
+\]
+
+donde 
+\[
+\mathbf q=S_q \hat{\mathbf q},
+\] 
+\[
+\dot{\mathbf q}=S_q \frac{d \hat{\mathbf q}}{d \tau}\frac{d \tau}{d t}=w_0 S_q \frac{d \hat{\mathbf q}}{d \tau}=w_0 S_q \dot{\hat{\mathbf q}}
+\]
+\[
+\ddot{\mathbf q}=\frac{d \dot{\hat{\mathbf q}}}{d \tau}\frac{d \tau}{d t}=w_0 \frac{d \dot{\hat{\mathbf q}}}{d \tau}=w_0^2 S_q  \frac{d^2 \hat{\mathbf q}}{d \tau^2}=w_0^2 S_q \ddot{\hat{\mathbf q}}
+\]
+
+donde $F=F_0 \hat{F}(\tau/t)$
+
+sustituyendo en el sistema dinamico
+
+\[
+w_0^2 S_q \mathbf M \ddot{\hat{\mathbf q}}+w_0 \mathbf C  S_q \dot{\hat{\mathbf q}} +\mathbf K S_q \hat{\mathbf q}=F_0 \hat{F}(\tau/t),
+\]
+
+ahora haciendo otro cambio de variable 
+
+\[
+\hat{q}=\Sigma^{1/2} d+\mu
+\]
+
+donde $\mu \in \mathbb{R}^4$ donde $\mu$ es 
+\[
+\mu=\frac{1}{N-1}\sum_{i=1}^{N} \hat{q} 
+\]
+donde $N$ es la cantidad datos, ahora $\Sigma \in \mathbb{R}^{4 \times 4}$ donde
+\[
+\Sigma = \mathbb{C}ov(\hat{q}, \hat{q})
+\]
+derivando la variable:
+
+\[
+\dot{\hat{q}}=\Sigma^{1/2} \dot d
+\]
+
+\[
+ \ddot{\hat{q}}=\Sigma^{1/2} \ddot d
+\]
+sustituyendo
+\[
+w_0^2 S_q \mathbf M \Sigma^{1/2}\ddot d +w_0 \mathbf C  S_q \Sigma^{1/2}\dot d  +\mathbf K S_q \Sigma^{1/2} \left(d+\mu\right)=F_0 \hat{F}(\tau/t),
+\]
+
+$d$ se puede descomponer en
+
+\[
+d=\mathbf{\phi} \psi=\sum_{i=0}^{N}\phi_i \psi_i (t)
+\]
+donde $\mathbf{\phi} =diag(\phi_i)$ sustituyendo la ecuación
+
+\[
+w_0^2 S_q \mathbf M \Sigma^{1/2}\mathbf{\phi}\ddot \psi +w_0 \mathbf C  S_q \Sigma^{1/2}\mathbf{\phi} \dot\psi  +\mathbf K S_q \Sigma^{1/2} \left(\mathbf{\phi} \psi+\mu\right)=F_0 \hat{F}(\tau/t),
+\]
+multiplicando por $\mathbf{\phi}^T$
+\[
+w_0^2 \mathbf{\phi}^T S_q \mathbf M \Sigma^{1/2}\mathbf{\phi} \ddot\psi +w_0 \mathbf{\phi}^T \mathbf C  S_q \Sigma^{1/2}\mathbf{\phi} \dot\psi  +\mathbf{\phi}^T \mathbf K S_q \Sigma^{1/2} \left(\mathbf{\phi} \psi+\mu\right)=F_0 \mathbf{\phi}^T \hat{F}(\tau/t),
+\]
+
+Definimos como:
+
+\[
+\hat{\mathbf{M}}=S_q \mathbf M \Sigma^{1/2}
+\]
+
+\[
+\hat{\mathbf{C}}=S_q \mathbf M \Sigma^{1/2}
+\]
+
+\[
+\hat{\mathbf{K}}=S_q \mathbf K  \Sigma^{1/2}
+\]
+
+\[
+w_0^2 \mathbf{\phi}^T \hat{\mathbf{M}} \mathbf{\phi} \ddot \psi + w_0 \mathbf{\phi}^T \hat{\mathbf{C}} \mathbf{\phi} \dot \psi  +\mathbf{\phi}^T \hat{\mathbf{K}} \mathbf{\phi} \psi=F_0 \mathbf{\phi}^T \hat{F}(\tau/t)-\hat{\mathbf{K}}\mu,
+\]
+
+Considerando el modelo:
+\[
+M \ddot{x}+K x=0
+\]
+
+la solución exacta es
+\[
+x=\phi e^{iwt}
+\]
+sustituyendo en la ecuacion diferencial
+
+\[
+M \left((iw)^2\phi e^{iwt}\right)+K \phi e^{iwt}=0
+\]
+simplificando
+\[
+-w^2 M \phi e^{iwt}+K \phi e^{iwt}=0
+\]
+\[
+K \phi-w^2 M \phi  =0
+\]
+esto se cumple si y solo si
+\[
+\det (K -w^2 M )=0
+\]
+\[
+\frac{1}{\det{M^{-1}}}\det (M^{-1} K  -w^2 M^{-1} M  )=0
+\]
+dado que el
+$\frac{1}{\det{M^{-1}}} \neq 0$
+este parte sigue siendo, y $M M^{-1}=I$
+\[
+\det (M^{-1} K  -w^2 I )=0
+\]
+este problema de eigenvalores donde $w^2$ son los eigenvalores, donde resolviendo el polinomio caracteristico
+podemos obtener $w_i^2$, vamos denominar como $w$ el vector conformado por los $w_i$. En la ecuación principal
+dividiendo $w_0^2$ y multiplicando por $\hat{\mathbf{M}}^{-1}$
+\[
+ \mathbf{\phi}^T \hat{\mathbf{M}}^{-1} \hat{\mathbf{M}} \mathbf{\phi} \ddot \psi + w_0^{-1} \mathbf{\phi}^T \hat{\mathbf{M}}^{-1}\hat{\mathbf{C}} \mathbf{\phi} \dot \psi  +w_0^{-2}\mathbf{\phi}^T \hat{\mathbf{M}}^{-1}\hat{\mathbf{K}} \mathbf{\phi} \psi=w_0^{-2}F_0 \mathbf{\phi}^T\hat{\mathbf{M}}^{-1} \hat{F}(\tau/t)-w_0^{-2}\hat{\mathbf{M}}^{-1}\hat{\mathbf{K}}\mu,
+\]
+simplificando
+\[
+ \mathbf{\phi}^T I \mathbf{\phi} \ddot \psi + w_0^{-1} \mathbf{\phi}^T \hat{\mathbf{M}}^{-1}\hat{\mathbf{C}} \mathbf{\phi} \dot \psi  +\frac{w^2}{w_0^{2}}\mathbf{\phi}^T I \mathbf{\phi} \psi=w_0^{-2}F_0 \mathbf{\phi}^T\hat{\mathbf{M}}^{-1} \hat{F}(\tau/t)-\frac{w_i^2}{w_0^{2}}I\mu,
+\]
+si consideramo que $\hat{C}$ es un armotiguamiento de Rayleig donde  $\hat{C}$ es
+\[
+\hat{C}=A M+B K
+\]
+entonce este producto es
+\[
+\hat{\mathbf{M}}^{-1}\hat{\mathbf{C}}=\hat{\mathbf{M}}^{-1}(A M+B K)=A I+w^2 B I
+\]
+nosotros queremos representar esto como $\zeta w I$ entonces $\zeta$ es
+\[
+\zeta = \frac{1}{w}A +w B 
+\] 
+entonce la ecuacion principal es
+\[
+ \mathbf{\phi}^T I \mathbf{\phi} \ddot \psi + w_0^{-1} \mathbf{\phi}^T \zeta w I \mathbf{\phi} \dot \psi  +\frac{w^2}{w_0^{2}}\mathbf{\phi}^T I \mathbf{\phi} \psi=w_0^{-2}F_0 \mathbf{\phi}^T\hat{\mathbf{M}}^{-1} \hat{F}(\tau/t)-\frac{w_i^2}{w_0^{2}}I\mu,
+\]
+
+\section{3D-Var sobre el modelo modal reducido}
+
+\textbf{Notación.} Para evitar colisiones con los coeficientes de Rayleigh ($a_R=A$, $b_R=B$), con la rigidez $R_i$, con $\mathbf K$ y con el desplazamiento $y$, se usa: $B_b$ covarianza de fondo, $R_o$ covarianza de observación, $\mathcal G$ ganancia, $\mathcal A$ matriz del sistema de primer orden, $\mathbf y^o$ vector de observaciones. La prima denota $d/d\tau$, con $\tau=w_0t$, y $\mathbf f=F_0\hat F$.
+
+\subsection{Escalamiento con el orden correcto}
+
+Con $\mathbf q=S_q\hat{\mathbf q}$ y $\hat{\mathbf q}=\Sigma^{1/2}\phi\psi+\mu$:
+\[
+\mathbf q=S_q\Sigma^{1/2}\phi\,\psi+S_q\mu,\qquad
+\dot{\mathbf q}=w_0S_q\Sigma^{1/2}\phi\,\psi',\qquad
+\ddot{\mathbf q}=w_0^2S_q\Sigma^{1/2}\phi\,\psi''.
+\]
+Sustituyendo en $\mathbf M\ddot{\mathbf q}+\mathbf C\dot{\mathbf q}+\mathbf K\mathbf q=\mathbf f$:
+\[
+w_0^2\,\mathbf MS_q\Sigma^{1/2}\phi\,\psi''+w_0\,\mathbf CS_q\Sigma^{1/2}\phi\,\psi'+\mathbf KS_q\Sigma^{1/2}\phi\,\psi+\mathbf KS_q\mu=\mathbf f(\tau).
+\]
+Se definen
+\[
+\hat{\mathbf M}=\mathbf MS_q\Sigma^{1/2},\qquad
+\hat{\mathbf C}=\mathbf CS_q\Sigma^{1/2},\qquad
+\hat{\mathbf K}=\mathbf KS_q\Sigma^{1/2},
+\]
+de modo que $\mathbf KS_q\mu=\hat{\mathbf K}\Sigma^{-1/2}\mu$ y
+\[
+w_0^2\hat{\mathbf M}\phi\,\psi''+w_0\hat{\mathbf C}\phi\,\psi'+\hat{\mathbf K}\phi\,\psi=\mathbf f-\hat{\mathbf K}\Sigma^{-1/2}\mu.
+\tag{1}
+\]
+
+\subsection{Reducción modal}
+
+\textbf{Hipótesis.} (i) $\phi\in\mathbb R^{4\times r}$ tiene rango columna $r$. (ii) Sus columnas son eigenvectores de $\hat{\mathbf M}^{-1}\hat{\mathbf K}$:
+\[
+\hat{\mathbf M}^{-1}\hat{\mathbf K}\,\phi=\phi\,W^2,\qquad W=\mathrm{diag}(w_1,\dots,w_r).
+\]
+(iii) $\hat{\mathbf C}=a_R\hat{\mathbf M}+b_R\hat{\mathbf K}$ (Rayleigh sobre las matrices escaladas).
+
+Los $w_i^2$ son los eigenvalores de $\mathbf M^{-1}\mathbf K$, porque
+\[
+\hat{\mathbf M}^{-1}\hat{\mathbf K}=(S_q\Sigma^{1/2})^{-1}\,\mathbf M^{-1}\mathbf K\,(S_q\Sigma^{1/2})
+\]
+es una transformación de similitud. De (iii),
+\[
+\hat{\mathbf M}^{-1}\hat{\mathbf C}\phi=a_R\phi+b_R\hat{\mathbf M}^{-1}\hat{\mathbf K}\phi=\phi\,(a_RI+b_RW^2).
+\]
+Multiplicando (1) por $w_0^{-2}\phi^{+}\hat{\mathbf M}^{-1}$, con $\phi^{+}=(\phi^T\phi)^{-1}\phi^T$ y $\phi^{+}\phi=I_r$:
+\[
+\psi''+\underbrace{\tfrac{1}{w_0}\big(a_RI+b_RW^2\big)}_{D}\,\psi'+\underbrace{\tfrac{1}{w_0^2}W^2}_{\Omega^2}\,\psi
+=\underbrace{w_0^{-2}\,\phi^{+}\hat{\mathbf M}^{-1}\big(\mathbf f-\hat{\mathbf K}\Sigma^{-1/2}\mu\big)}_{u(\tau)}.
+\tag{2}
+\]
+Si $\phi^T\phi=I_r$, entonces $\phi^{+}=\phi^T$. Con la definición del documento, $D_i=\zeta_iw_i/w_0$ con $\zeta_iw_i=a_R+b_Rw_i^2$. En la convención usual $D_i=2\xi_i\Omega_i$ con $\xi_i=\tfrac12\big(a_R/w_i+b_Rw_i\big)$.
+
+\subsection{Forma de primer orden y propagador}
+
+Con $x=[\psi;\psi']\in\mathbb R^{2r}$ y $E=\begin{bmatrix}0\\ I_r\end{bmatrix}$, (2) equivale a
+\[
+x'=\mathcal Ax+Eu(\tau),\qquad
+\mathcal A=\begin{bmatrix}0&I_r\\-\Omega^2&-D\end{bmatrix}.
+\]
+La solución exacta en $[\tau_{k-1},\tau_k]$, con $\Delta\tau=\tau_k-\tau_{k-1}$, es
+\[
+x(\tau_k)=\Phi\,x(\tau_{k-1})+\Gamma_k,\qquad
+\Phi=e^{\mathcal A\Delta\tau},\qquad
+\Gamma_k=\int_{\tau_{k-1}}^{\tau_k}e^{\mathcal A(\tau_k-s)}E\,u(s)\,ds.
+\]
+Si $u\equiv u_{k-1}$ es constante en el intervalo, $\Gamma_k=\mathcal A^{-1}(\Phi-I)E\,u_{k-1}$. $\mathcal A$ es invertible porque $\det\mathcal A=\det\Omega^2\neq0$.
+
+Como $\Omega$ y $D$ son diagonales, $\Phi$ se desacopla en bloques $2\times2$ por modo. Con $\alpha_i=D_i/2$ y $\omega_{d,i}=\sqrt{\Omega_i^2-\alpha_i^2}$ (caso subamortiguado, $\alpha_i<\Omega_i$):
+\[
+\Phi_i=e^{-\alpha_i\Delta\tau}
+\begin{bmatrix}
+\cos(\omega_{d,i}\Delta\tau)+\dfrac{\alpha_i}{\omega_{d,i}}\sin(\omega_{d,i}\Delta\tau) & \dfrac{1}{\omega_{d,i}}\sin(\omega_{d,i}\Delta\tau)\\[8pt]
+-\dfrac{\Omega_i^2}{\omega_{d,i}}\sin(\omega_{d,i}\Delta\tau) & \cos(\omega_{d,i}\Delta\tau)-\dfrac{\alpha_i}{\omega_{d,i}}\sin(\omega_{d,i}\Delta\tau)
+\end{bmatrix}.
+\]
+
+\subsection{Operador de observación}
+
+De la cinemática $y_{C_i}=y+r_{C_ix}\theta_z$, $z_{C_i}=z-r_{C_ix}\theta_y$, derivando dos veces:
+\[
+\ddot y_{C_i}=\ddot y+r_{C_ix}\ddot\theta_z,\qquad
+\ddot z_{C_i}=\ddot z-r_{C_ix}\ddot\theta_y.
+\]
+Con $a=[\ddot y_{C_1},\ddot z_{C_1},\dots,\ddot y_{C_4},\ddot z_{C_4}]^T\in\mathbb R^8$ y $\ddot{\mathbf q}=[\ddot y,\ddot z,\ddot\theta_y,\ddot\theta_z]^T$:
+\[
+a=T\ddot{\mathbf q},\qquad
+T=\begin{bmatrix}
+1&0&0&r_{C_1x}\\0&1&-r_{C_1x}&0\\
+\vdots&\vdots&\vdots&\vdots\\
+1&0&0&r_{C_4x}\\0&1&-r_{C_4x}&0
+\end{bmatrix}\in\mathbb R^{8\times4}.
+\]
+De la sección de escalamiento, $\ddot{\mathbf q}=w_0^2S_q\Sigma^{1/2}\phi\,\psi''$ ($\mu$ es constante y desaparece), y de (2), $\psi''=u-\Omega^2\psi-D\psi'$. Entonces
+\[
+a=w_0^2\,TS_q\Sigma^{1/2}\phi\,\big(u-\Omega^2\psi-D\psi'\big)=Hx+d,
+\]
+\[
+H=-w_0^2\,G\,\big[\Omega^2\;\;D\big]\in\mathbb R^{8\times2r},\qquad
+G=TS_q\Sigma^{1/2}\phi\in\mathbb R^{8\times r},\qquad
+d=w_0^2\,G\,u .
+\]
+El modelo de observación es
+\[
+\mathbf y^o_k=Hx_k+d_k+\varepsilon_k,\qquad \varepsilon_k\sim\mathcal N(0,R_o),\qquad d_k=w_0^2\,G\,u(\tau_k).
+\]
+$H$ es constante si $\Omega$ y $D$ lo son. $d_k$ requiere $u$ conocida, es decir, $F_1$ y $F_2$ conocidas o modeladas.
+
+\subsection{Función de costo (máximo a posteriori)}
+
+Con prior $x\sim\mathcal N(x_b,B_b)$ y verosimilitud $\mathbf y^o\,|\,x\sim\mathcal N(Hx+d,R_o)$, por Bayes $p(x\,|\,\mathbf y^o)\propto\exp(-J(x))$, con
+\[
+J(x)=\tfrac12(x-x_b)^TB_b^{-1}(x-x_b)+\tfrac12(\mathbf y^o-Hx-d)^TR_o^{-1}(\mathbf y^o-Hx-d).
+\]
+El estimador MAP es $x_a=\arg\min J$. Gradiente y hessiano:
+\[
+\nabla J=B_b^{-1}(x-x_b)-H^TR_o^{-1}(\mathbf y^o-Hx-d),\qquad
+\nabla^2J=B_b^{-1}+H^TR_o^{-1}H .
+\]
+Como $\nabla^2J\succ0$, el mínimo es único.
+
+\subsection{Mínimo en forma cerrada}
+
+Sea la innovación $\delta=\mathbf y^o-d-Hx_b$ y el incremento $\delta x=x_a-x_b$. De $\nabla J(x_a)=0$, usando $\mathbf y^o-Hx_a-d=\delta-H\delta x$:
+\[
+B_b^{-1}\delta x=H^TR_o^{-1}(\delta-H\delta x)
+\;\Longrightarrow\;
+\big(B_b^{-1}+H^TR_o^{-1}H\big)\delta x=H^TR_o^{-1}\delta .
+\]
+Forma equivalente, que invierte una matriz de $8\times8$. Como
+\[
+\big(B_b^{-1}+H^TR_o^{-1}H\big)B_bH^T=H^T+H^TR_o^{-1}HB_bH^T=H^TR_o^{-1}\big(R_o+HB_bH^T\big),
+\]
+se obtiene
+\[
+\mathcal G=\big(B_b^{-1}+H^TR_o^{-1}H\big)^{-1}H^TR_o^{-1}=B_bH^T\big(HB_bH^T+R_o\big)^{-1},
+\]
+\[
+x_a=x_b+\mathcal G\,\big(\mathbf y^o-d-Hx_b\big).
+\]
+Covarianza del análisis: $P_a=(\nabla^2J)^{-1}=(I-\mathcal GH)B_b$, pues
+\[
+(I-\mathcal GH)B_b\big(B_b^{-1}+H^TR_o^{-1}H\big)=I+B_bH^TR_o^{-1}H-\mathcal G\big(H+HB_bH^TR_o^{-1}H\big)=I,
+\]
+ya que $\mathcal G\big(H+HB_bH^TR_o^{-1}H\big)=\mathcal G\,(R_o+HB_bH^T)R_o^{-1}H=B_bH^TR_o^{-1}H$.
+
+\subsection{Especificación de $R_o$ y $B_b$}
+
+$R_o\in\mathbb R^{8\times8}$ proviene del ruido de adquisición. Con ruido independiente,
+$R_o=\mathrm{diag}(\sigma_{y,1}^2,\sigma_{z,1}^2,\dots,\sigma_{y,4}^2,\sigma_{z,4}^2)$.
+
+$B_b\in\mathbb R^{2r\times2r}$ es simétrica definida positiva. Una elección: $d=\Sigma^{-1/2}(\hat{\mathbf q}-\mu)$ 
+tiene covarianza $I$ sobre los datos usados para calcular $\Sigma$ y $\mu$, así que $\psi=\phi^{+}d$ tiene covarianza 
+$(\phi^T\phi)^{-1}$ ($=I_r$ si $\phi^T\phi=I_r$). Para las velocidades, en respuesta armónica de frecuencia adimensional 
+$\Omega_f$, $\mathbb E[\psi_i'^2]=\Omega_f^2\,\mathbb E[\psi_i^2]$. Entonces
+\[
+B_b=\sigma_b^2\begin{bmatrix}(\phi^T\phi)^{-1}&0\\0&\Omega_f^2(\phi^T\phi)^{-1}\end{bmatrix},
+\]
+con $\sigma_b$ ajustado a la incertidumbre del pronóstico.
+
+\subsection{Algoritmo (un ciclo por instante de medición)}
+
+\begin{enumerate}
+\item Inicializar $x_{a,0}$; fijar $B_b$, $R_o$, $H$.
+\item Pronóstico: $x_{b,k}=\Phi\,x_{a,k-1}+\Gamma_k$.
+\item Innovación: $\delta_k=\mathbf y^o_k-d_k-Hx_{b,k}$.
+\item Ganancia: $\mathcal G=B_bH^T\big(HB_bH^T+R_o\big)^{-1}$.
+\item Análisis: $x_{a,k}=x_{b,k}+\mathcal G\,\delta_k$.
+\item Reconstrucción física: $\mathbf q_k=S_q\big(\Sigma^{1/2}\phi\,\psi_{a,k}+\mu\big)$.
+\end{enumerate}
+
+\subsection{Rango de $H$ y observabilidad}
+
+$T$ tiene rango 4 si al menos dos $r_{C_ix}$ son distintos: las filas en $y$ generan las columnas 1 y 4, y las filas en $z$ 
+las columnas 2 y 3. Por tanto $\operatorname{rank}G\le r$ y
+\[
+\operatorname{rank}H=\operatorname{rank}\big(G\,[\Omega^2\;\;D]\big)\le r<2r .
+\]
+$H$ observa únicamente $r$ combinaciones $\Omega^2\psi+D\psi'$ (equivalentemente, $\psi''$). Las 8 lecturas son redundantes: 
+solo 4 son independientes, porque el eje se modela rígido con 4 grados de libertad. Las direcciones de $\ker H$, de dimensión 
+al menos $r$, no se corrigen con una observación aislada. Solo se vuelven observables a través de la dinámica en ciclos 
+sucesivos, si el par $(\Phi,H)$ es observable. $B_b^{-1}$ mantiene el problema bien planteado ($\nabla^2J\succ0$) aunque 
+$H^TR_o^{-1}H$ sea singular.

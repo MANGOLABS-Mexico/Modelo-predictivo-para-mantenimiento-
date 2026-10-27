@@ -1,0 +1,840 @@
+\section{Introducción}
+
+El objetivo de este trabajo es desarrollar un esquema de asimilación de datos que permita determinar el momento adecuado 
+para realizar el mantenimiento de los cojinetes de una máquina rotatoria. Para ello se parte de un modelo físico del eje 
+soportado por los cojinetes, basado en la dinámica de cuerpo rígido, en el cual los cojinetes y la banda de transmisión se 
+representan como elementos equivalentes resorte--amortiguador.
+
+El modelo se reduce a coordenadas modales y se emplea como modelo de pronóstico dentro del método de asimilación variacional 
+3D-Var, que combina el pronóstico con las aceleraciones medidas en los cojinetes para estimar el estado del sistema.
+
+Los datos provienen del \emph{IMS Bearing Dataset}, disponible a través de la 
+NASA\footnote{\url{https://data.nasa.gov/dataset/ims-bearings}}, que contiene experimentos de operación hasta la falla 
+(\emph{test-to-failure}) de cuatro cojinetes montados sobre un mismo eje, con aceleraciones registradas en cada cojinete.
+
+El documento se organiza como sigue: se describen los datos y el ruido de medición, se plantea el modelo físico y sus 
+ecuaciones de movimiento, se adimensiona y reduce el sistema a coordenadas modales, y finalmente se formula el esquema 3D-Var.
+
+\section{Mediciones y datos}
+
+Los datos corresponden al \emph{IMS Bearing Dataset}, obtenido en un banco de pruebas con cuatro cojinetes montados 
+sobre un mismo eje. La velocidad de giro se mantuvo constante en 2000~RPM ($\approx 33.3$~Hz) mediante un motor de 
+corriente alterna acoplado al eje por bandas. Una carga radial de 6000~lb ($\approx 26.7$~kN) se aplicó sobre el eje y 
+los cojinetes mediante un mecanismo de resorte, y todos los cojinetes se lubricaron por fuerza. Se instalaron cojinetes 
+Rexnord ZA-2115 de doble hilera. Todas las fallas ocurrieron después de superar la vida útil de diseño, que es de más de 
+100 millones de revoluciones.
+
+Las aceleraciones se midieron con acelerómetros de cuarzo PCB 353B33 montados en la carcasa de cada cojinete, con dos 
+acelerómetros por cojinete (ejes $x$ e $y$ del dataset) en el conjunto~1 y uno por cojinete en los conjuntos~2 y~3.
+
+\subsection{Estructura de los datos}
+
+El dataset contiene tres conjuntos, cada uno correspondiente a un experimento de operación hasta la falla 
+(\emph{test-to-failure}). Cada conjunto consta de archivos que registran un segundo de vibración, con 20\,480 
+puntos por archivo y una frecuencia de muestreo de 20~kHz, adquiridos con una tarjeta NI DAQ 6062E. El nombre de 
+cada archivo indica el instante de adquisición. Los intervalos mayores entre nombres consecutivos indican que el 
+experimento se reanudó el siguiente día laboral.
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|p{3.2cm}|p{3.8cm}|p{3.8cm}|p{3.8cm}|}
+\hline
+ & \textbf{Conjunto 1} & \textbf{Conjunto 2} & \textbf{Conjunto 3} \\ \hline
+Periodo & 22/oct/2003 12:06:24 a 25/nov/2003 23:39:56 & 12/feb/2004 10:32:39 a 19/feb/2004 06:22:39 
+& 4/mar/2004 09:27:46 a 4/abr/2004 19:01:57 \\ \hline
+Número de archivos & 2\,156 & 984 & 4\,448 \\ \hline
+Número de canales & 8 & 4 & 4 \\ \hline
+Disposición de canales & Cojinete 1: canales 1 y 2; cojinete 2: canales 3 y 4; cojinete 3: canales 5 y 6; 
+cojinete 4: canales 7 y 8 & Un canal por cojinete (canal $i$ en el cojinete $i$) & Un canal por cojinete 
+(canal $i$ en el cojinete $i$) \\ \hline
+Intervalo entre archivos & 10 min (los primeros 43 archivos, cada 5 min) & 10 min & 10 min \\ \hline
+Formato & ASCII & ASCII & ASCII \\ \hline
+Falla al final del experimento & Defecto en la pista interna del cojinete 3 y en el elemento rodante del cojinete 4 & 
+Falla en la pista externa del cojinete 1 & Falla en la pista externa del cojinete 3 \\ \hline
+\end{tabular}
+\caption{Resumen de los tres conjuntos del \emph{IMS Bearing Dataset}.}
+\label{tab:ims}
+\end{table}
+
+\subsection{Relación con el modelo}
+
+Las mediciones son aceleraciones en dirección radial; no se dispone de desplazamientos ni velocidades. 
+En el modelo del eje $E_2$ (sección siguiente) el eje longitudinal es $x$, por lo que las dos direcciones 
+radiales de los acelerómetros se identifican con las direcciones $y$ y $z$ del modelo. Así, el número de 
+observaciones por instante es $8$ para el conjunto~1 y $4$ para los conjuntos~2 y~3. Para estos últimos, la 
+descripción del dataset no especifica la dirección radial del acelerómetro de cada cojinete.
+
+\section{Consideraciones físicas}
+
+Se considera un banco de pruebas compuesto por dos ejes. El eje del motor se denotará por $E_1$, mientras que el eje
+ soportado por los cojinetes se denotará por $E_2$. Ambos ejes se encuentran acoplados mediante una banda de transmisión.
+
+La banda se modela mediante un sistema equivalente resorte--amortiguador, que representa el comportamiento elástico y 
+disipativo del mecanismo de transmisión. Este elemento equivalente se denotará por $B_1$.
+
+El eje $E_2$ está soportado por cuatro cojinetes, identificados como $C_1$, $C_2$, $C_3$ y $C_4$. Las distancias entre los 
+distintos componentes del sistema se representan mediante los parámetros geométricos $L_1,\ldots,L_5$.
+
+\subsection{Sistema coordenado}
+
+Se define un sistema de referencia cartesiano con el eje $x$ a lo largo del eje longitudinal de $E_2$ y los ejes $y$, $z$ en 
+las direcciones radiales, con $z$ vertical. Las posiciones $r_{C_ix}$ y $r_{bx}$ de los cojinetes y de la banda se miden sobre el eje $x$ a partir del centro de masa de $E_2$.
+
+\subsection{Hipótesis del modelo}
+
+\begin{enumerate}
+\item El eje $E_2$ se comporta como un cuerpo rígido, con masa $m$ y geometría de cilindro sólido de radio $r$ y longitud $l$.
+\item Las rotaciones del eje respecto a las direcciones $y$ y $z$ son pequeñas, por lo que se linealiza la cinemática.
+\item Los cojinetes $C_i$ y la banda $B_1$ se modelan como elementos lineales resorte--amortiguador. La masa de la banda es 
+despreciable respecto a la del sistema.
+\item La velocidad de giro es constante, por lo que la aceleración angular alrededor del eje $x$ es nula. Se desprecian los 
+efectos giroscópicos.
+\item La excitación debida al desbalance se representa mediante dos fuerzas, $F_1$ y $F_2$, aplicadas en las posiciones 
+de los cojinetes $C_2$ y $C_3$ en la dirección $y$.
+\item Las fuerzas y las posiciones en la dirección $x$ son despreciables frente a las de las direcciones $y$ y $z$.
+\end{enumerate}
+
+\section{Ruido en las mediciones}
+
+Las mediciones corresponden a las aceleraciones radiales de los cojinetes registradas por los acelerómetros descritos en la 
+sección anterior. Estas mediciones constituyen la información experimental utilizada para la asimilación de datos, para la 
+identificación de parámetros y para la validación del modelo físico.
+
+Las mediciones están afectadas por ruido proveniente del sistema de adquisición de datos y de perturbaciones inherentes al 
+proceso de medición. Sea $\mathbf a_k\in\mathbb R^{n_o}$ el vector de aceleraciones de los cojinetes que predice el modelo 
+en el instante $t_k$, con $n_o=8$ para el conjunto~1 y $n_o=4$ para los conjuntos~2 y~3. El vector de observaciones 
+$\mathbf y^o_k$ se modela como
+\[
+\mathbf y^o_k=\mathbf a_k+\boldsymbol\varepsilon_k,
+\]
+donde $\boldsymbol\varepsilon_k$ es el error de medición. Se adoptan las siguientes hipótesis:
+
+\begin{enumerate}
+\item El ruido es aditivo, de media cero y gaussiano: $\boldsymbol\varepsilon_k\sim\mathcal N(\mathbf 0,R_o)$.
+\item El ruido es blanco en el tiempo: $\mathbb E[\boldsymbol\varepsilon_j\boldsymbol\varepsilon_k^\top]=\mathbf 0$ para $j\neq k$.
+\item El ruido es independiente entre canales, por lo que $R_o$ es diagonal:
+\[
+R_o=\mathrm{diag}\big(\sigma_1^2,\ldots,\sigma_{n_o}^2\big),
+\]
+donde $\sigma_j^2$ es la varianza del ruido del canal $j$.
+\item El ruido es independiente del estado del sistema y de la excitación.
+\end{enumerate}
+
+La matriz $R_o\in\mathbb R^{n_o\times n_o}$ es simétrica y definida positiva, y es la covarianza del error de observación 
+que interviene en la función de costo de 3D-Var.
+
+\section{Modelo físico}
+
+Las Figuras~\ref{fig:maquina}--\ref{fig:banda} muestran el esquema simplificado de la máquina y los diagramas de fuerza de los ejes y de la banda.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.65\linewidth]{C:/Users/chris/OneDrive/Documentos/GitHub/MangoLabs/proyecto_2/Documento_Latex/Imagenes/D2.png}
+    \caption{Diagrama físico simplificado de la máquina.}
+    \label{fig:maquina}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.7\linewidth]{C:/Users/chris/OneDrive/Documentos/GitHub/MangoLabs/proyecto_2/Documento_Latex/Imagenes/D1.png}
+    \caption{Diagrama de fuerzas del eje $E_2$.}
+    \label{fig:eje2}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.3\linewidth]{C:/Users/chris/OneDrive/Documentos/GitHub/MangoLabs/proyecto_2/Documento_Latex/Imagenes/D3.png}
+    \caption{Diagrama de fuerzas del eje $E_1$.}
+    \label{fig:eje1}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.2\linewidth]{C:/Users/chris/OneDrive/Documentos/GitHub/MangoLabs/proyecto_2/Documento_Latex/Imagenes/D4.png}
+    \caption{Diagrama de fuerzas de la banda.}
+    \label{fig:banda}
+\end{figure}
+
+El interés se centra en el estudio de la dinámica del eje $E_2$, debido a que los cojinetes constituyen los componentes donde ocurren los modos de falla analizados en este trabajo.
+
+\subsection{Fuerzas de la banda y de los cojinetes}
+
+La fuerza transmitida por la banda al eje $E_2$ no es conocida explícitamente. En consecuencia, la banda se modela 
+como un sistema equivalente resorte--amortiguador ($B_1$). Se asume que la masa de la banda es despreciable respecto 
+a la masa del sistema y que $E_1$ no se desplaza, por lo que
+\[
+\mathbf F_b(t)=C_b\,\dot{\mathbf r}_{E_2/E_1}(t)+R_b\,\mathbf r_{E_2/E_1}(t),
+\]
+donde $\mathbf r_{E_2/E_1}$ es el desplazamiento relativo de $E_2$ respecto de $E_1$, medido desde la configuración de 
+referencia, y $C_b$, $R_b$ son los coeficientes equivalentes de amortiguamiento y rigidez de la banda. La fuerza que la 
+banda ejerce sobre $E_2$ es $-\mathbf F_b$, pues se opone al desplazamiento relativo.
+
+De forma análoga, cada cojinete se modela como un elemento resorte--amortiguador. La fuerza que el cojinete $C_i$ ejerce 
+sobre el eje se opone al desplazamiento y a la velocidad del eje en ese punto:
+\[
+\mathbf F_{C_i}=-\big(R_i\,\mathbf x_i+C_i\,\dot{\mathbf x}_i\big),
+\qquad i=1,2,3,4,
+\]
+donde $\mathbf x_i$ es el desplazamiento del eje en el cojinete $C_i$ respecto de la configuración de referencia, y 
+$R_i$, $C_i$ son los coeficientes de rigidez y amortiguamiento equivalentes de $C_i$.
+
+\subsection{Balance de fuerzas}
+
+Aplicando la segunda ley de Newton al eje $E_2$,
+\[
+\sum\vec F=m\vec a,
+\]
+se obtiene
+\[
+-\mathbf F_b+\mathbf F_{E_2}+\sum_{i=1}^{4}\mathbf F_{C_i}-\mathbf F_1-\mathbf F_2=m\,\ddot{\mathbf r}_{E_2},
+\]
+donde $m$ es la masa de $E_2$, $\ddot{\mathbf r}_{E_2}$ es la aceleración de su centro de masa, 
+$\mathbf F_{E_2}=\langle0,0,-mg\rangle$ es su peso, y $\mathbf F_1=\langle0,F_1,0\rangle$, 
+$\mathbf F_2=\langle0,F_2,0\rangle$ son las fuerzas de excitación (desbalance) aplicadas en las 
+posiciones de los cojinetes $C_2$ y $C_3$, respectivamente.
+
+\subsection{Balance de momentos}
+
+El equilibrio dinámico de momentos se plantea respecto al centro de masa de $E_2$:
+\[
+\sum\vec M=I\vec\alpha .
+\]
+Con las posiciones $\mathbf r$ medidas desde el centro de masa, el peso no genera momento, y
+\[
+-\mathbf r_b\times\mathbf F_b
++\sum_{i=1}^{4}\mathbf r_{C_i}\times\mathbf F_{C_i}
+-\mathbf r_{C_2}\times\mathbf F_1
+-\mathbf r_{C_3}\times\mathbf F_2
+=I\,\boldsymbol\alpha .
+\]
+
+El producto cruz general es
+\[
+\begin{vmatrix}
+\mathbf i & \mathbf j & \mathbf k\\
+r_x & r_y & r_z\\
+F_x & F_y & F_z
+\end{vmatrix}
+=(r_yF_z-r_zF_y)\,\mathbf i-(r_xF_z-r_zF_x)\,\mathbf j+(r_xF_y-r_yF_x)\,\mathbf k .
+\]
+Dado que la fuerza en la dirección $x$ es despreciable frente a las fuerzas en $y$ y $z$, y que $r_y$, $r_z$ son 
+despreciables frente a $r_x$ (es decir, $F_x\approx r_y\approx r_z\approx0$), el producto cruz se simplifica a
+\[
+\begin{vmatrix}
+\mathbf i & \mathbf j & \mathbf k\\
+r_x & 0 & 0\\
+0 & F_y & F_z
+\end{vmatrix}
+=-(r_xF_z)\,\mathbf j+(r_xF_y)\,\mathbf k .
+\]
+
+Se toma el eje $E_2$ como un cilindro sólido de radio $r$ y longitud $l$. Respecto a su centro de masa, el tensor de inercia es
+\[
+I_x=\frac{m}{2}r^2,\qquad
+I_y=I_z=I_t=m\left(\frac14 r^2+\frac1{12}l^2\right).
+\]
+La aceleración angular en $x$ es nula por diseño; en $y$ y $z$ está determinada por las vibraciones del sistema, 
+$\boldsymbol\alpha=\langle0,\alpha_y,\alpha_z\rangle$. Entonces
+\[
+I\boldsymbol\alpha=
+\begin{bmatrix}
+\frac{m}{2}r^2 & 0 & 0\\
+0 & I_t & 0\\
+0 & 0 & I_t
+\end{bmatrix}
+\begin{bmatrix}0\\ \alpha_y\\ \alpha_z\end{bmatrix}
+=\langle0,\;I_t\alpha_y,\;I_t\alpha_z\rangle .
+\]
+
+Sustituyendo el producto cruz simplificado y $I\boldsymbol\alpha$ en el balance de momentos, e igualando componentes:
+\begin{align*}
+\mathbf j:\quad & r_{bx}F_{bz}-\sum_{i=1}^{4}r_{C_ix}F_{C_iz}=I_t\,\alpha_y,\\
+\mathbf k:\quad & -r_{bx}F_{by}+\sum_{i=1}^{4}r_{C_ix}F_{C_iy}-r_{C_2x}F_1-r_{C_3x}F_2=I_t\,\alpha_z,
+\end{align*}
+donde $r_{bx}$ y $r_{C_ix}$ son las posiciones de la banda y de los cojinetes sobre el eje $x$, medidas desde el centro de masa,
+con signo.
+
+\section{Cinemática del eje y ecuaciones de movimiento}
+
+\subsection{Coordenadas generalizadas y cinemática}
+
+Se definen las coordenadas generalizadas del eje $E_2$: las traslaciones $y(t)$, $z(t)$ del centro de masa y las rotaciones 
+$\theta_y(t)$, $\theta_z(t)$ alrededor de los ejes $y$ y $z$, con
+\[
+\alpha_y=\ddot\theta_y,\qquad \alpha_z=\ddot\theta_z .
+\]
+Se agrupan en el vector
+\[
+\mathbf q(t)=\big[\,y,\;z,\;\theta_y,\;\theta_z\,\big]^\top .
+\]
+
+Como $E_2$ es rígido y las rotaciones son pequeñas, el desplazamiento en un punto del eje ubicado a una distancia $r_x$ 
+del centro de masa (con signo, a lo largo de $x$) es, con la convención de la regla de la mano derecha,
+\[
+y(r_x,t)=y(t)+r_x\,\theta_z(t),\qquad
+z(r_x,t)=z(t)-r_x\,\theta_y(t),
+\]
+y de forma análoga para las velocidades. En cada cojinete $C_i$ ($r_x=r_{C_ix}$) y en el punto de acción de la banda 
+($r_x=r_{bx}$):
+\[
+y_{C_i}=y+r_{C_ix}\theta_z,\qquad z_{C_i}=z-r_{C_ix}\theta_y,
+\]
+\[
+\dot y_{C_i}=\dot y+r_{C_ix}\dot\theta_z,\qquad \dot z_{C_i}=\dot z-r_{C_ix}\dot\theta_y,
+\]
+\[
+y_b=y+r_{bx}\theta_z,\qquad \dot y_b=\dot y+r_{bx}\dot\theta_z .
+\]
+
+\subsection{Fuerzas}
+
+Sustituyendo en el modelo de cojinete $\mathbf F_{C_i}=-(R_i\mathbf x_i+C_i\dot{\mathbf x}_i)$:
+\[
+F_{C_iy}=-\big[R_i\big(y+r_{C_ix}\theta_z\big)+C_i\big(\dot y+r_{C_ix}\dot\theta_z\big)\big],
+\]
+\[
+F_{C_iz}=-\big[R_i\big(z-r_{C_ix}\theta_y\big)+C_i\big(\dot z-r_{C_ix}\dot\theta_y\big)\big].
+\]
+La fuerza $\mathbf F_b$ asociada a la banda actúa en el punto $r_{bx}$ únicamente en la dirección $y$:
+\[
+F_{by}=C_b\big(\dot y+r_{bx}\dot\theta_z\big)+R_b\big(y+r_{bx}\theta_z\big),
+\qquad F_{bz}=0 ,
+\]
+y la fuerza que ejerce sobre $E_2$ es $-F_{by}$.
+
+\subsection{Ecuaciones de traslación}
+
+De $\sum\vec F=m\vec a$, en las direcciones $y$ y $z$:
+\[
+m\ddot y=-F_{by}+\sum_{i=1}^4F_{C_iy}-F_1-F_2,
+\qquad
+m\ddot z=\sum_{i=1}^4F_{C_iz}-mg .
+\]
+
+\subsection{Ecuaciones de rotación}
+
+De las componentes del balance de momentos respecto al centro de masa, con $F_{bz}=0$:
+\[
+I_t\,\ddot\theta_y=-\sum_{i=1}^4r_{C_ix}F_{C_iz},
+\qquad
+I_t\,\ddot\theta_z=-r_{bx}F_{by}+\sum_{i=1}^4r_{C_ix}F_{C_iy}-r_{C_2x}F_1-r_{C_3x}F_2,
+\]
+con $I_t=m\left(\tfrac14r^2+\tfrac1{12}l^2\right)$.
+
+\subsection{Ecuaciones desarrolladas}
+
+Sustituyendo las fuerzas y pasando al lado izquierdo todos los términos que dependen de $\mathbf q$ y sus derivadas, 
+las sumas $\sum_i$ recorren $i=1,2,3,4$:
+\begin{align*}
+&m\ddot y+\Big(C_b+\sum_iC_i\Big)\dot y+\Big(C_br_{bx}+\sum_iC_ir_{C_ix}\Big)\dot\theta_z\\
+&\qquad+\Big(R_b+\sum_iR_i\Big)y+\Big(R_br_{bx}+\sum_iR_ir_{C_ix}\Big)\theta_z=-F_1-F_2,\\[4pt]
+&m\ddot z+\Big(\sum_iC_i\Big)\dot z-\Big(\sum_iC_ir_{C_ix}\Big)\dot\theta_y
++\Big(\sum_iR_i\Big)z-\Big(\sum_iR_ir_{C_ix}\Big)\theta_y=-mg,\\[4pt]
+&I_t\ddot\theta_y-\Big(\sum_iC_ir_{C_ix}\Big)\dot z+\Big(\sum_iC_ir_{C_ix}^2\Big)\dot\theta_y
+-\Big(\sum_iR_ir_{C_ix}\Big)z+\Big(\sum_iR_ir_{C_ix}^2\Big)\theta_y=0,\\[4pt]
+&I_t\ddot\theta_z+\Big(C_br_{bx}+\sum_iC_ir_{C_ix}\Big)\dot y+\Big(C_br_{bx}^2+\sum_iC_ir_{C_ix}^2\Big)\dot\theta_z\\
+&\qquad+\Big(R_br_{bx}+\sum_iR_ir_{C_ix}\Big)y+\Big(R_br_{bx}^2+\sum_iR_ir_{C_ix}^2\Big)\theta_z=-r_{C_2x}F_1-r_{C_3x}F_2 .
+\end{align*}
+
+\subsection{Forma matricial}
+
+El sistema se escribe como
+\[
+\mathbf M\ddot{\mathbf q}+\mathbf C\dot{\mathbf q}+\mathbf K\mathbf q=\mathbf f(t),
+\]
+con
+\[
+\mathbf M=\begin{bmatrix}
+m&0&0&0\\
+0&m&0&0\\
+0&0&I_t&0\\
+0&0&0&I_t
+\end{bmatrix},
+\]
+\[
+\mathbf C=\begin{bmatrix}
+C_b+\sum_iC_i & 0 & 0 & C_br_{bx}+\sum_iC_ir_{C_ix}\\[2pt]
+0 & \sum_iC_i & -\sum_iC_ir_{C_ix} & 0\\[2pt]
+0 & -\sum_iC_ir_{C_ix} & \sum_iC_ir_{C_ix}^2 & 0\\[2pt]
+C_br_{bx}+\sum_iC_ir_{C_ix} & 0 & 0 & C_br_{bx}^2+\sum_iC_ir_{C_ix}^2
+\end{bmatrix},
+\]
+\[
+\mathbf K=\begin{bmatrix}
+R_b+\sum_iR_i & 0 & 0 & R_br_{bx}+\sum_iR_ir_{C_ix}\\[2pt]
+0 & \sum_iR_i & -\sum_iR_ir_{C_ix} & 0\\[2pt]
+0 & -\sum_iR_ir_{C_ix} & \sum_iR_ir_{C_ix}^2 & 0\\[2pt]
+R_br_{bx}+\sum_iR_ir_{C_ix} & 0 & 0 & R_br_{bx}^2+\sum_iR_ir_{C_ix}^2
+\end{bmatrix},
+\]
+\[
+\mathbf f(t)=\begin{bmatrix}-F_1-F_2\\-mg\\0\\-r_{C_2x}F_1-r_{C_3x}F_2\end{bmatrix}.
+\]
+
+Las matrices $\mathbf M$, $\mathbf C$ y $\mathbf K$ son simétricas. $\mathbf K$ y $\mathbf C$ son semidefinidas positivas,
+porque cada una es una suma de formas cuadráticas de la forma $\kappa\,\mathbf v^\top\mathbf v$ con $\mathbf v=[1,\,r_x]$ 
+(bloque $y$--$\theta_z$) o $\mathbf v=[1,\,-r_x]$ (bloque $z$--$\theta_y$), y $\kappa\geq0$. Si al menos dos de las 
+posiciones $r_{C_ix}$, $r_{bx}$ son distintas y los coeficientes son positivos, $\mathbf K$ es definida positiva, 
+lo que garantiza $w_i^2>0$ en el problema de eigenvalores de la sección de reducción modal. Las distancias 
+$r_{C_ix}$ y $r_{bx}$ se expresan en términos de $L_1,\ldots,L_5$ según la ubicación geométrica de cada componente 
+respecto al centro de masa (Figura~\ref{fig:maquina}).
+
+\section{Adimensionamiento y reducción modal}
+
+\subsection{Adimensionamiento}
+
+Se define el tiempo adimensional $\tau=w_0t$, con $w_0$ una frecuencia característica, y las coordenadas 
+adimensionales $\hat{\mathbf q}$ mediante
+\[
+\mathbf q=S_q\,\hat{\mathbf q},\qquad
+S_q=\begin{bmatrix}
+L&0&0&0\\
+0&L&0&0\\
+0&0&1&0\\
+0&0&0&1
+\end{bmatrix},
+\]
+donde $L$ es una longitud característica. Denotando con prima la derivada respecto a $\tau$,
+\[
+\dot{\mathbf q}=w_0\,S_q\,\hat{\mathbf q}\,',\qquad
+\ddot{\mathbf q}=w_0^2\,S_q\,\hat{\mathbf q}\,''.
+\]
+El vector de fuerzas se escribe $\mathbf f(t)=F_0\,\hat{\mathbf f}(\tau)$, con $F_0$ una fuerza característica y
+ $\hat{\mathbf f}$ adimensional (sus componentes de momento llevan unidad de longitud). Sustituyendo 
+  $\mathbf M\ddot{\mathbf q}+\mathbf C\dot{\mathbf q}+\mathbf K\mathbf q=\mathbf f$:
+\[
+w_0^2\,\mathbf MS_q\,\hat{\mathbf q}\,''+w_0\,\mathbf CS_q\,\hat{\mathbf q}\,'+\mathbf KS_q\,\hat{\mathbf q}=F_0\,\hat{\mathbf f}(\tau).
+\]
+
+\subsection{Normalización estadística}
+
+Sea $\{\hat{\mathbf q}_j\}_{j=1}^N$ un conjunto de $N$ muestras de $\hat{\mathbf q}$, obtenidas de las aceleraciones
+$\mathbf a_j\in\mathbb R^{8}$ de un archivo de referencia (de los primeros, con los cojinetes sanos) como sigue:
+\begin{enumerate}
+\item $\ddot{\mathbf q}_j=T^{+}\mathbf a_j$, con $T^{+}=(T^\top T)^{-1}T^\top$ y $T$ evaluada en las posiciones
+nominales $\bar r_{C_ix}$, distintas entre sí (para que $\operatorname{rank}T=4$).
+\item Doble integración en frecuencia: cada componente de Fourier de $\ddot{\mathbf q}_j$ de frecuencia $f$ se divide
+por $-(2\pi f)^2$ si $f\ge f_c$ y se anula si $f<f_c$, con $f_c$ por debajo de la frecuencia de giro ($33.3$~Hz).
+\item $\hat{\mathbf q}_j=S_q^{-1}\mathbf q_j$.
+\end{enumerate}
+Con ellas se definen su media y su covarianza,
+\[
+\mu=\frac1N\sum_{j=1}^N\hat{\mathbf q}_j\in\mathbb R^4,\qquad
+\Sigma=\frac1{N-1}\sum_{j=1}^N(\hat{\mathbf q}_j-\mu)(\hat{\mathbf q}_j-\mu)^\top\in\mathbb R^{4\times4},
+\]
+con $\Sigma$ definida positiva, y el cambio de variable
+\[
+\hat{\mathbf q}=\Sigma^{1/2}\mathbf d+\mu\quad\Longleftrightarrow\quad \mathbf d=\Sigma^{-1/2}(\hat{\mathbf q}-\mu),
+\]
+de modo que $\mathbf d$ tiene media cero y covarianza identidad. Como $\mu$ es constante, 
+$\hat{\mathbf q}\,'=\Sigma^{1/2}\mathbf d\,'$ y $\hat{\mathbf q}\,''=\Sigma^{1/2}\mathbf d\,''$. Sustituyendo:
+\[
+w_0^2\,\mathbf MS_q\Sigma^{1/2}\mathbf d\,''+w_0\,\mathbf CS_q\Sigma^{1/2}\mathbf d\,'+\mathbf KS_q\Sigma^{1/2}\mathbf d+\mathbf KS_q\mu=F_0\,\hat{\mathbf f}(\tau).
+\]
+Se definen
+\[
+\hat{\mathbf M}=\mathbf MS_q\Sigma^{1/2},\qquad
+\hat{\mathbf C}=\mathbf CS_q\Sigma^{1/2},\qquad
+\hat{\mathbf K}=\mathbf KS_q\Sigma^{1/2},
+\]
+y como $\mathbf KS_q\mu=\hat{\mathbf K}\Sigma^{-1/2}\mu$,
+\begin{equation}\label{eq:escalada}
+w_0^2\,\hat{\mathbf M}\,\mathbf d\,''+w_0\,\hat{\mathbf C}\,\mathbf d\,'+\hat{\mathbf K}\,\mathbf d=F_0\,\hat{\mathbf f}(\tau)-\hat{\mathbf K}\Sigma^{-1/2}\mu .
+\end{equation}
+
+\subsection{Problema de eigenvalores}
+
+Para el sistema no amortiguado y sin excitación, $\mathbf M\ddot{\mathbf q}_h+\mathbf K\mathbf q_h=\mathbf 0$, se propone $\mathbf q_h=\mathbf v\,e^{iwt}$:
+\[
+\big(\mathbf K-w^2\mathbf M\big)\mathbf v=\mathbf 0 .
+\]
+Existe solución no trivial si y solo si $\det(\mathbf K-w^2\mathbf M)=\det(\mathbf M)\det(\mathbf M^{-1}\mathbf K-w^2I)=0$.
+ Como $\mathbf M$ es invertible, equivale a
+\[
+\det\big(\mathbf M^{-1}\mathbf K-w^2I\big)=0,
+\]
+es decir, $w^2$ son los eigenvalores de $\mathbf M^{-1}\mathbf K$. Dado que $\mathbf M$ y $\mathbf K$ son simétricas definidas
+ positivas, los $w_i^2$ son reales y positivos, y los eigenvectores $\mathbf v_i$ pueden normalizarse con $V^\top\mathbf MV=I$, 
+ donde $V=[\mathbf v_1,\ldots,\mathbf v_4]$. Se ordenan $w_1\le w_2\le w_3\le w_4$ y se conservan los $r\le4$ primeros modos, 
+ $V_r=[\mathbf v_1,\ldots,\mathbf v_r]$, $W=\mathrm{diag}(w_1,\ldots,w_r)$.
+
+Con $T_s=S_q\Sigma^{1/2}$ se tiene $\hat{\mathbf M}=\mathbf MT_s$ y $\hat{\mathbf K}=\mathbf KT_s$, por lo que
+\[
+\hat{\mathbf M}^{-1}\hat{\mathbf K}=T_s^{-1}\,\mathbf M^{-1}\mathbf K\,T_s
+\]
+es semejante a $\mathbf M^{-1}\mathbf K$: tiene los mismos eigenvalores $w_i^2$, y sus eigenvectores son
+\[
+\phi_i=T_s^{-1}\mathbf v_i,\qquad \phi=[\phi_1,\ldots,\phi_r]=T_s^{-1}V_r\in\mathbb R^{4\times r},
+\qquad
+\hat{\mathbf M}^{-1}\hat{\mathbf K}\,\phi=\phi\,W^2 .
+\]
+$\phi$ tiene rango columna $r$. Se denota $\phi^{+}=(\phi^\top\phi)^{-1}\phi^\top$, con $\phi^{+}\phi=I_r$.
+
+\subsection{Amortiguamiento proporcional}
+
+Se adopta amortiguamiento proporcional (de Rayleigh),
+\[
+\mathbf C=a_R\,\mathbf M+b_R\,\mathbf K,
+\]
+con $a_R,b_R\ge0$, que es una aproximación de la matriz $\mathbf C$ de la sección anterior. Multiplicando por $T_s$ por la
+ derecha, equivale a $\hat{\mathbf C}=a_R\hat{\mathbf M}+b_R\hat{\mathbf K}$. Entonces
+\[
+\hat{\mathbf M}^{-1}\hat{\mathbf C}\,\phi=a_R\,\phi+b_R\,\hat{\mathbf M}^{-1}\hat{\mathbf K}\,\phi=\phi\,\big(a_RI+b_RW^2\big).
+\]
+El factor de amortiguamiento del modo $i$ es
+\[
+\xi_i=\frac12\left(\frac{a_R}{w_i}+b_Rw_i\right),\qquad\text{de modo que}\qquad a_R+b_Rw_i^2=2\xi_iw_i .
+\]
+
+\subsection{Ecuación reducida}
+
+Se expande $\mathbf d=\phi\,\psi$, con $\psi(\tau)\in\mathbb R^r$ las coordenadas modales. Sustituyendo en 
+\eqref{eq:escalada} y multiplicando por $w_0^{-2}\,\phi^{+}\hat{\mathbf M}^{-1}$:
+\begin{equation}\label{eq:reducida}
+\psi\,''+D\,\psi\,'+\Omega^2\,\psi=\mathbf u(\tau),
+\end{equation}
+con
+\[
+\Omega=\frac{W}{w_0},\qquad
+D=\frac{1}{w_0}\big(a_RI+b_RW^2\big)=2\,\mathrm{diag}(\xi_i\Omega_i),\qquad
+\mathbf u(\tau)=w_0^{-2}\,\phi^{+}\hat{\mathbf M}^{-1}\Big(F_0\,\hat{\mathbf f}(\tau)-\hat{\mathbf K}\Sigma^{-1/2}\mu\Big).
+\]
+Las coordenadas físicas se recuperan con
+\[
+\mathbf q=S_q\big(\Sigma^{1/2}\phi\,\psi+\mu\big).
+\]
+
+\textbf{Observación.} Como $S_q\Sigma^{1/2}\phi=T_s\phi=V_r$, resulta $\mathbf q=S_q\mu+V_r\psi$: $\psi$ son las coordenadas
+modales usuales del sistema original, y $S_q$, $\Sigma$ no modifican la dinámica modal; solo fijan el desplazamiento constante
+$S_q\mu$ y la escala adimensional de $\hat{\mathbf q}$.
+
+\section{Modelo de pronóstico}
+
+El modelo de pronóstico es la ecuación reducida \eqref{eq:reducida},
+\[
+\psi\,''+D\,\psi\,'+\Omega^2\,\psi=\mathbf u(\tau),
+\]
+con $\Omega=\mathrm{diag}(\Omega_1,\ldots,\Omega_r)$, $D=\mathrm{diag}(2\xi_i\Omega_i)$ y $\mathbf u(\tau)$ el término de excitación (fuerzas de desbalance, peso y desplazamiento constante $S_q\mu$). Se supone que $\Omega$, $D$ y $\mathbf u(\tau)$ son conocidos.
+
+\subsection{Forma de primer orden}
+
+Se define el vector de estado modal $\mathbf s(\tau)=\big[\psi;\,\psi\,'\big]\in\mathbb R^{2r}$. Entonces
+\[
+\mathbf s\,'=\mathcal A\,\mathbf s+E\,\mathbf u(\tau),\qquad
+\mathcal A=\begin{bmatrix}0&I_r\\-\Omega^2&-D\end{bmatrix},\qquad
+E=\begin{bmatrix}0\\I_r\end{bmatrix}.
+\]
+
+\subsection{Solución exacta en cada intervalo}
+
+Sean $t_{k-1}$ y $t_k$ dos instantes consecutivos de medición, y $\Delta\tau_k=w_0\,(t_k-t_{k-1})$. Por variación de parámetros,
+\[
+\mathbf s(\tau_k)=\Phi_k\,\mathbf s(\tau_{k-1})+\Gamma_k,\qquad
+\Phi_k=e^{\mathcal A\Delta\tau_k},\qquad
+\Gamma_k=\int_{\tau_{k-1}}^{\tau_k}e^{\mathcal A(\tau_k-\sigma)}E\,\mathbf u(\sigma)\,d\sigma .
+\]
+Si $\mathbf u$ se mantiene constante, $\mathbf u\equiv\bar{\mathbf u}_k$, en el intervalo, entonces, como $\mathcal A$ es invertible ($\det\mathcal A=\det\Omega^2\neq0$),
+\[
+\Gamma_k=\mathcal A^{-1}\big(\Phi_k-I\big)E\,\bar{\mathbf u}_k=\big(I-\Phi_k\big)\,\mathbf s_{e,k},\qquad
+\mathbf s_{e,k}=\begin{bmatrix}\Omega^{-2}\bar{\mathbf u}_k\\ \mathbf 0\end{bmatrix},
+\]
+donde $\mathbf s_{e,k}$ es el equilibrio del sistema con excitación $\bar{\mathbf u}_k$. Equivalentemente, $\mathbf s(\tau_k)-\mathbf s_{e,k}=\Phi_k\big(\mathbf s(\tau_{k-1})-\mathbf s_{e,k}\big)$.
+
+\subsection{Propagador por modo}
+
+Como $\Omega$ y $D$ son diagonales, tras reordenar el estado por modos, $\mathbf s_i=[\psi_i;\psi_i\,']$, el propagador se desacopla en bloques de $2\times2$. Para modos subamortiguados ($0<\xi_i<1$), con $\omega_{d,i}=\Omega_i\sqrt{1-\xi_i^2}$:
+\[
+\Phi_i=e^{-\xi_i\Omega_i\Delta\tau}
+\begin{bmatrix}
+\cos(\omega_{d,i}\Delta\tau)+\dfrac{\xi_i\Omega_i}{\omega_{d,i}}\sin(\omega_{d,i}\Delta\tau)
+&\dfrac{1}{\omega_{d,i}}\sin(\omega_{d,i}\Delta\tau)\\[10pt]
+-\dfrac{\Omega_i^2}{\omega_{d,i}}\sin(\omega_{d,i}\Delta\tau)
+&\cos(\omega_{d,i}\Delta\tau)-\dfrac{\xi_i\Omega_i}{\omega_{d,i}}\sin(\omega_{d,i}\Delta\tau)
+\end{bmatrix}.
+\]
+Los eigenvalores de $\mathcal A_i$ son $-\xi_i\Omega_i\pm i\,\omega_{d,i}$, con parte real negativa si $\xi_i>0$. Por tanto $\|\Phi^n\|\to0$ cuando $n\to\infty$: el sistema es asintóticamente estable y toda condición inicial se amortigua.
+
+\subsection{Pronóstico}
+
+Dado el análisis $\mathbf s_{a,k-1}$ en $t_{k-1}$, el estado de fondo (pronóstico) en $t_k$ es
+\[
+\mathbf s_{b,k}=\Phi_k\,\mathbf s_{a,k-1}+\Gamma_k,\qquad k=1,2,\ldots,
+\]
+con $\mathbf s_{a,0}$ dado como condición inicial.
+
+\subsection{Alcance del pronóstico}
+
+\begin{enumerate}
+\item Dentro de un archivo, las muestras están separadas por $\Delta t=1/20\,000~\text{s}=50~\mu\text{s}$, y el factor de amortiguamiento por paso es $e^{-\xi_iw_i\Delta t}$, cercano a~1 para $\xi_iw_i\Delta t\ll1$. El pronóstico propaga el estado entre muestras.
+\item Entre archivos consecutivos hay $\Delta t=600$~s. Si $\xi_iw_i\cdot600\gg1$, entonces $\Phi_k\approx0$ y $\mathbf s_{b,k}\approx\Gamma_k=\mathbf s_{e,k}$: el pronóstico no transmite información del archivo anterior y el estado se inicializa con el equilibrio forzado. Por tanto el ciclo pronóstico--análisis tiene sentido dentro de cada archivo, no entre archivos.
+\item Las matrices $\Omega$ y $D$ dependen de $\mathbf K$, $\mathbf M$ y $\mathbf C$, es decir, de $R_b$, $C_b$, $R_i$ y $C_i$. En el pronóstico se consideran constantes. El modelo no incluye error de modelo ni evolución de los parámetros.
+\item La excitación $\mathbf u(\tau)$ depende de $F_1$ y $F_2$, que no se miden. Deben especificarse o modelarse antes de ejecutar el pronóstico.
+\end{enumerate}
+
+\section{Operador de observación}
+
+\subsection{Aceleraciones en los cojinetes}
+
+Las observaciones son aceleraciones radiales en los cojinetes. Se asume que la aceleración medida en la carcasa coincide con la aceleración del eje en el punto del cojinete (los cojinetes se modelan con soporte rígido). De la cinemática, derivando dos veces $y_{C_i}=y+r_{C_ix}\theta_z$ y $z_{C_i}=z-r_{C_ix}\theta_y$:
+\[
+\ddot y_{C_i}=\ddot y+r_{C_ix}\ddot\theta_z=\mathbf t_i^{y}\,\ddot{\mathbf q},\qquad
+\ddot z_{C_i}=\ddot z-r_{C_ix}\ddot\theta_y=\mathbf t_i^{z}\,\ddot{\mathbf q},
+\]
+\[
+\mathbf t_i^{y}=\big[\,1,\;0,\;0,\;r_{C_ix}\,\big],\qquad
+\mathbf t_i^{z}=\big[\,0,\;1,\;-r_{C_ix},\;0\,\big].
+\]
+El vector de aceleraciones observadas es $\mathbf a=T\,\ddot{\mathbf q}\in\mathbb R^{n_o}$, donde las filas de $T$ son las $\mathbf t_i^{y}$, $\mathbf t_i^{z}$ de los canales disponibles:
+
+\begin{itemize}
+\item \textbf{Conjunto 1} ($n_o=8$, dos canales por cojinete, identificados con $y$ y $z$):
+\[
+T=\begin{bmatrix}
+\mathbf t_1^{y}\\ \mathbf t_1^{z}\\ \vdots\\ \mathbf t_4^{y}\\ \mathbf t_4^{z}
+\end{bmatrix}\in\mathbb R^{8\times4}.
+\]
+\item \textbf{Conjuntos 2 y 3} ($n_o=4$, un canal por cojinete): la fila $i$ de $T$ es $\mathbf t_i^{y}$ o $\mathbf t_i^{z}$, según la dirección del acelerómetro del cojinete $i$.
+\end{itemize}
+
+\subsection{Aceleraciones en función del estado modal}
+
+De la sección de reducción, $\mathbf q=S_q\mu+V_r\psi$, con $V_r=S_q\Sigma^{1/2}\phi$. Como $\mu$ es constante y $\ddot{\mathbf q}=w_0^2\,V_r\,\psi\,''$ (derivada respecto a $\tau$), y de la ecuación reducida $\psi\,''=\mathbf u-\Omega^2\psi-D\psi\,'$:
+\[
+\mathbf a=w_0^2\,T\,V_r\big(\mathbf u-\Omega^2\psi-D\psi\,'\big).
+\]
+Con $\mathbf s=[\psi;\psi\,']$ el modelo de observación es afín en $\mathbf s$:
+\[
+\mathbf a_k=H\,\mathbf s_k+\mathbf c_k,
+\]
+\[
+H=-w_0^2\,G\,\big[\Omega^2\;\;D\big]\in\mathbb R^{n_o\times2r},\qquad
+G=T\,V_r\in\mathbb R^{n_o\times r},\qquad
+\mathbf c_k=w_0^2\,G\,\mathbf u(\tau_k).
+\]
+Con el ruido de la sección de mediciones,
+\begin{equation}\label{eq:obs}
+\mathbf y^o_k=H\,\mathbf s_k+\mathbf c_k+\boldsymbol\varepsilon_k,\qquad \boldsymbol\varepsilon_k\sim\mathcal N(\mathbf 0,R_o).
+\end{equation}
+$H$ depende solo de $\Omega$, $D$, $T$ y $V_r$; es constante mientras los parámetros del modelo lo sean. $\mathbf c_k$ requiere conocer $\mathbf u(\tau_k)$, es decir, la excitación.
+
+\subsection{Rango de $H$ y observabilidad}
+
+Como $[\Omega^2\;\;D]\in\mathbb R^{r\times2r}$ tiene rango $r$ ($\Omega^2$ es invertible), $\operatorname{rank}H=\operatorname{rank}G\le r$. Por tanto $H$ observa solo $r$ combinaciones de $\mathbf s$, a saber $\Omega^2\psi+D\psi\,'$, equivalente a $\psi\,''$. Quedan al menos $r$ direcciones en $\ker H$, que una observación aislada no corrige y que se vuelven observables a través de la dinámica solo si el par $(\Phi,H)$ es observable.
+
+El rango de $G$ depende de $T$:
+\begin{itemize}
+\item Conjunto 1: $\operatorname{rank}T=4$ si al menos dos posiciones $r_{C_ix}$ son distintas. Las filas $\mathbf t^y$ generan las columnas 1 y 4, y las filas $\mathbf t^z$ las columnas 2 y 3. Las 8 lecturas son redundantes: solo 4 combinaciones son independientes.
+\item Conjuntos 2 y 3: si los cuatro acelerómetros miden la misma dirección, $\operatorname{rank}T=2$. Con dirección $y$ solo se observa el par $(y,\theta_z)$, y con dirección $z$ solo $(z,\theta_y)$. El otro subsistema no es observable. Para $\operatorname{rank}T=4$ se requieren cojinetes con direcciones distintas y posiciones $r_{C_ix}$ distintas.
+\end{itemize}
+
+\section{Asimilación de datos 3D-Var}
+
+\subsection{Planteamiento}
+
+En cada instante de medición $t_k$ se dispone de dos fuentes de información sobre el estado modal $\mathbf s_k=[\psi_k;\psi_k']\in\mathbb R^{2r}$:
+\begin{enumerate}
+\item el estado de fondo $\mathbf s_{b,k}$, obtenido con el modelo de pronóstico, y
+\item las aceleraciones observadas $\mathbf y^o_k\in\mathbb R^{n_o}$, relacionadas con $\mathbf s_k$ mediante el operador de observación \eqref{eq:obs}.
+\end{enumerate}
+Se supone que el error del estado de fondo es gaussiano, $\mathbf s_k\sim\mathcal N(\mathbf s_{b,k},B_b)$, con $B_b\in\mathbb R^{2r\times2r}$ simétrica y definida positiva, y que el error de observación es $\boldsymbol\varepsilon_k\sim\mathcal N(\mathbf 0,R_o)$, independiente del error de fondo. El análisis $\mathbf s_{a,k}$ es el estimador de máximo a posteriori. Como $H$ es lineal, el problema es lineal--gaussiano.
+
+\subsection{Función de costo}
+
+Por el teorema de Bayes, $p(\mathbf s\,|\,\mathbf y^o)\propto\exp\!\big(-J(\mathbf s)\big)$, con
+\[
+J(\mathbf s)=\tfrac12(\mathbf s-\mathbf s_b)^\top B_b^{-1}(\mathbf s-\mathbf s_b)
++\tfrac12(\mathbf y^o-H\mathbf s-\mathbf c)^\top R_o^{-1}(\mathbf y^o-H\mathbf s-\mathbf c).
+\]
+(Se omite el subíndice $k$ cuando no hay ambigüedad.) El análisis es $\mathbf s_a=\arg\min_{\mathbf s}J(\mathbf s)$. 
+El gradiente y el hessiano son
+\[
+\nabla J(\mathbf s)=B_b^{-1}(\mathbf s-\mathbf s_b)-H^\top R_o^{-1}(\mathbf y^o-H\mathbf s-\mathbf c),
+\qquad
+\nabla^2J=B_b^{-1}+H^\top R_o^{-1}H .
+\]
+Como $B_b^{-1}\succ0$ y $H^\top R_o^{-1}H\succeq0$, se tiene $\nabla^2J\succ0$ y el mínimo es único, aunque $H$ tenga rango
+deficiente.
+
+\subsection{Solución en forma cerrada}
+
+Sea la innovación $\boldsymbol\delta=\mathbf y^o-\mathbf c-H\mathbf s_b$ y el incremento 
+$\delta\mathbf s=\mathbf s_a-\mathbf s_b$. De $\nabla J(\mathbf s_a)=\mathbf 0$, 
+usando $\mathbf y^o-H\mathbf s_a-\mathbf c=\boldsymbol\delta-H\delta\mathbf s$:
+\[
+B_b^{-1}\delta\mathbf s=H^\top R_o^{-1}\big(\boldsymbol\delta-H\delta\mathbf s\big)
+\;\Longrightarrow\;
+\big(B_b^{-1}+H^\top R_o^{-1}H\big)\,\delta\mathbf s=H^\top R_o^{-1}\boldsymbol\delta .
+\]
+Para escribirlo con una inversa de tamaño $n_o\times n_o$, se observa que
+\[
+\big(B_b^{-1}+H^\top R_o^{-1}H\big)B_bH^\top
+=H^\top+H^\top R_o^{-1}HB_bH^\top
+=H^\top R_o^{-1}\big(R_o+HB_bH^\top\big),
+\]
+de donde
+\[
+\mathcal G=\big(B_b^{-1}+H^\top R_o^{-1}H\big)^{-1}H^\top R_o^{-1}
+=B_bH^\top\big(HB_bH^\top+R_o\big)^{-1},
+\]
+\begin{equation}\label{eq:analisis}
+\mathbf s_a=\mathbf s_b+\mathcal G\,\big(\mathbf y^o-\mathbf c-H\mathbf s_b\big).
+\end{equation}
+La covarianza del análisis es $P_a=(\nabla^2J)^{-1}=(I-\mathcal GH)\,B_b$. En efecto,
+\[
+(I-\mathcal GH)B_b\big(B_b^{-1}+H^\top R_o^{-1}H\big)
+=I+B_bH^\top R_o^{-1}H-\mathcal G\big(H+HB_bH^\top R_o^{-1}H\big)=I,
+\]
+
+pues $\mathcal G\big(H+HB_bH^\top R_o^{-1}H\big)=\mathcal G\,(R_o+HB_bH^\top)R_o^{-1}H=B_bH^\top R_o^{-1}H$.
+
+\subsection{Especificación de $R_o$ y $B_b$}
+
+\textbf{Covarianza de observación.} $R_o$ es la covarianza del ruido de medición de la sección correspondiente: 
+$R_o=\mathrm{diag}(\sigma_1^2,\ldots,\sigma_{n_o}^2)$.
+
+\textbf{Covarianza de fondo.} Por construcción, $\mathbf d=\Sigma^{-1/2}(\hat{\mathbf q}-\mu)$ tiene covarianza $I$ sobre
+las muestras con las que se calcularon $\mu$ y $\Sigma$. Con $\mathbf d=\phi\psi$, $\psi=\phi^{+}\mathbf d$ tiene covarianza 
+$P_\psi=(\phi^\top\phi)^{-1}$. Para las velocidades modales, en respuesta armónica de frecuencia adimensional $\Omega_f$, 
+$\mathbb E[\psi_i'^2]=\Omega_f^2\,\mathbb E[\psi_i^2]$. Se adopta
+\[
+B_b=\sigma_b^2\begin{bmatrix}P_\psi&0\\0&\Omega_f^2P_\psi\end{bmatrix},
+\]
+donde el factor $\sigma_b^2$ escala la incertidumbre del pronóstico y es un parámetro de ajuste.
+
+\subsection{Algoritmo}
+
+Para cada instante de medición $k=1,2,\ldots$ dentro de un mismo archivo:
+\begin{enumerate}
+\item \textbf{Pronóstico:} $\mathbf s_{b,k}=\Phi_k\,\mathbf s_{a,k-1}+\Gamma_k$.
+\item \textbf{Innovación:} $\boldsymbol\delta_k=\mathbf y^o_k-\mathbf c_k-H\,\mathbf s_{b,k}$.
+\item \textbf{Ganancia:} $\mathcal G=B_bH^\top\big(HB_bH^\top+R_o\big)^{-1}$.
+\item \textbf{Análisis:} $\mathbf s_{a,k}=\mathbf s_{b,k}+\mathcal G\,\boldsymbol\delta_k$, con $P_{a,k}=(I-\mathcal GH)B_b$.
+\item \textbf{Reconstrucción física:} $\mathbf q_k=S_q\mu+V_r\,\psi_{a,k}$.
+\end{enumerate}
+El estado se inicializa con $\mathbf s_{a,0}$, y $B_b$ y $R_o$ se mantienen fijas 
+(3D-Var no propaga la covarianza entre ciclos). Como $H$ es constante, $\mathcal G$ se calcula una sola vez.
+
+\section{Estimación de parámetros}
+
+En las secciones anteriores se supusieron conocidos $\Omega$, $D$, $V_r$, $T$ y la excitación $\mathbf u$, y se estimó solo el estado $\mathbf s$. En esta sección se levanta ese supuesto: los parámetros que determinan esas cantidades se estiman junto con el estado.
+
+\subsection{Parámetros}
+
+Los parámetros de interés, que caracterizan el estado de cada cojinete y de la banda, son
+\[
+\theta=\big[\ln\tilde R_1,\ldots,\ln\tilde R_4,\ \ln\tilde R_b,\ \ln\tilde a_R,\ \ln\tilde b_R\big]^\top\in\mathbb R^{7},
+\]
+con $\tilde R_i=R_i/(mw_0^2)$, $\tilde R_b=R_b/(mw_0^2)$, $\tilde a_R=a_R/w_0$ y $\tilde b_R=b_Rw_0$. De $\theta$ dependen $w_i$, $\xi_i$ y el régimen de cada modo (subamortiguado, crítico o sobreamortiguado). Las demás cantidades desconocidas se estiman como variables conjuntas y no se reportan:
+\[
+\eta=\big[\ln\tilde\rho^2,\ \tilde r_{C_1x},\ldots,\tilde r_{C_4x},\ \tilde r_{bx},\ \tilde F_1,\ \tilde F_2\big]^\top\in\mathbb R^{8},
+\]
+con $\tilde\rho^2=I_t/(mL^2)$, $\tilde r=r/L$ y $\tilde F_j=F_j/(mLw_0^2)$. La masa no es identificable por separado: multiplicar $m$, $I_t$, $R_i$, $R_b$ y $F_j$ por un mismo factor, con $a_R$ y $b_R$ fijos, no cambia $\mathbf q(t)$; por ello los parámetros se normalizan por $m$.
+
+\subsection{Vector de control y pronóstico}
+
+El vector de control es
+\[
+\mathbf z=\begin{bmatrix}\mathbf s\\\theta\\\eta\end{bmatrix}\in\mathbb R^{2r+15}.
+\]
+El pronóstico es
+\[
+\mathbf s^b_k=\Phi_k\,\mathbf s^a_{k-1}+\Gamma_k,\qquad
+\theta^b_k=\theta^a_{k-1},\qquad
+\eta^b_k=\eta^a_{k-1},
+\]
+con $\Phi_k=e^{\mathcal A\Delta\tau_k}$ y $\Gamma_k$ evaluados en $\theta^a_{k-1}$, $\eta^a_{k-1}$ (se recalculan en cada ciclo; la exponencial matricial vale para $\xi_i<1$, $\xi_i=1$ y $\xi_i>1$). La persistencia de $\theta$ y $\eta$ equivale a un paseo aleatorio, $\theta_k=\theta_{k-1}+\varepsilon_k$: no impone parámetros constantes, y los cambios de $R_i$, $R_b$, $a_R$, $b_R$ los recoge el análisis.
+
+\subsection{Operador de observación}
+
+Con $\theta$ y $\eta$ desconocidos,
+\[
+\mathbf h(\mathbf z)=H(\theta,\eta)\,\mathbf s+\mathbf c(\theta,\eta),\qquad
+H=-w_0^2\,G\,\big[\Omega^2\;\;D\big],\quad G=T\,V_r,\quad \mathbf c=w_0^2\,G\,\mathbf u,
+\]
+que es no lineal en $\mathbf z$, porque $\Omega$, $D$, $V_r$, $T$ y $\mathbf u$ dependen de $\theta$ y $\eta$ (con $r_{C_ix}=L\tilde r_{C_ix}$ en $T$).
+
+\subsection{Distribución a priori}
+
+Las a priori son gaussianas sin truncar, $\theta\sim\mathcal N(\theta_b,B_\theta)$ y $\eta\sim\mathcal N(\eta_b,B_\eta)$: la positividad la garantiza la escala logarítmica, por lo que no se imponen cotas. Se toman poco informativas: $\theta_b=\mathbf 0$ (valor $1$ en escala adimensional) y $B_\theta=\sigma_\theta^2I_7$ con $\sigma_\theta$ grande. Para $\eta$, $\eta_b$ son los valores nominales de la figura (posiciones, inercia) y $\mathbf 0$ para $\tilde F_j$, y $B_\eta=\mathrm{diag}(\sigma_\rho^2,\sigma_r^2I_5,\sigma_F^2I_2)$ con varianzas grandes. $B_\theta$ debe ser al menos del tamaño del cambio esperado de $\theta$ entre ciclos; si es menor, el análisis no puede seguir los cambios de $R$ y $C$. La covarianza de fondo es
+\[
+B_z=\mathrm{blockdiag}\big(B_b,\;B_\theta,\;B_\eta\big),
+\]
+con $B_b$ de la sección anterior.
+
+\subsection{Función de costo y solución}
+
+En cada $t_k$,
+\[
+J(\mathbf z)=\tfrac12(\mathbf z-\mathbf z_b)^\top B_z^{-1}(\mathbf z-\mathbf z_b)
++\tfrac12\big(\mathbf y^o-\mathbf h(\mathbf z)\big)^\top R_o^{-1}\big(\mathbf y^o-\mathbf h(\mathbf z)\big).
+\]
+Como $\mathbf h$ es no lineal, se linealiza alrededor de la iteración $\mathbf z^{(j)}$ ($j$ cuenta iteraciones, no instantes). Con $\mathbf z^{(0)}=\mathbf z_b$ y $\mathcal J_j=\partial\mathbf h/\partial\mathbf z\big|_{\mathbf z^{(j)}}$:
+\begin{equation}\label{eq:gn}
+\mathbf z^{(j+1)}=\mathbf z_b+B_z\mathcal J_j^\top\big(\mathcal J_jB_z\mathcal J_j^\top+R_o\big)^{-1}
+\Big[\mathbf y^o-\mathbf h(\mathbf z^{(j)})+\mathcal J_j\big(\mathbf z^{(j)}-\mathbf z_b\big)\Big].
+\end{equation}
+El análisis $\mathbf z_a$ es el límite de las iteraciones. El jacobiano es $\mathcal J=\big[\,H(\theta,\eta)\;\;\partial_\theta\mathbf h\;\;\partial_\eta\mathbf h\,\big]$, con $\partial_\theta\mathbf h$ y $\partial_\eta\mathbf h$ por diferencias finitas, pues $V_r$ y $w_i$ salen del problema de eigenvalores. Si solo se estimara $\mathbf s$, $\mathcal J=H$ y la primera iteración de \eqref{eq:gn} es exactamente \eqref{eq:analisis}.
+
+\subsection{Algoritmo}
+
+Para cada instante $k$ dentro de un archivo:
+\begin{enumerate}
+\item Pronóstico de $\mathbf z^b_k$ como arriba.
+\item Análisis: iteraciones \eqref{eq:gn} hasta convergencia.
+\item Diagnóstico: $\xi_i(\theta^a_k)=\tfrac12\big(a_R/w_i+b_Rw_i\big)$ y régimen de cada modo; se reportan $R_i$ (normalizados por $m$) y su cambio respecto al valor sano.
+\end{enumerate}
+
+\subsection{Identificabilidad}
+
+\begin{enumerate}
+\item Con $m$, $I_t$ y las posiciones dados, la dinámica depende de los $R_i$ solo por $S_m=\sum_iR_i\,r_{C_ix}^m$, $m=0,1,2$, y de $R_b$: 4 combinaciones para 5 incógnitas. Queda una dirección no identificable: los datos determinan cuándo cambia el sistema, pero no atribuyen el cambio a un cojinete sin una hipótesis adicional.
+\item Una comprobación local es el rango de $\mathcal J$ en el análisis: si es menor que $2r+15$, hay combinaciones de $\mathbf z$ que una observación no determina y solo las fija $B_z$.
+\end{enumerate}
+
+\section{Resultados}
+
+\subsection{Resistencias de los cojinetes}
+
+Se analiza la evolución temporal de las resistencias estimadas para los cuatro cojinetes, normalizadas respecto a sus valores iniciales.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{C:/Users/chris/OneDrive/Documentos/GitHub/MangoLabs/proyecto_2/Documento_Latex/MarcoTeorico/R_normalizado.pdf}
+    \caption{Evolución de las resistencias normalizadas de los cuatro cojinetes.}
+    \label{fig:resistencias}
+\end{figure}
+
+\subsection{Frecuencias naturales}
+
+A partir de los parámetros estimados, se estudia la evolución de las frecuencias naturales del sistema.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{C:/Users/chris/OneDrive/Documentos/GitHub/MangoLabs/proyecto_2/Documento_Latex/MarcoTeorico/w.pdf}
+    \caption{Evolución de las frecuencias naturales estimadas.}
+    \label{fig:frecuencias}
+\end{figure}
+
+\subsection{Razones de amortiguamiento}
+
+Se presentan las razones de amortiguamiento de los cuatro modos, calculadas a partir de los parámetros del modelo.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{C:/Users/chris/OneDrive/Documentos/GitHub/MangoLabs/proyecto_2/Documento_Latex/MarcoTeorico/xi.pdf}
+    \caption{Evolución de las razones de amortiguamiento estimadas.}
+    \label{fig:amortiguamiento}
+\end{figure}
+
+\subsection{Parámetros del amortiguamiento}
+
+Finalmente, se muestra la evolución de los parámetros $a_R$ y $b_R$ durante el proceso de estimación.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{C:/Users/chris/OneDrive/Documentos/GitHub/MangoLabs/proyecto_2/Documento_Latex/MarcoTeorico/C_rayleigh.pdf}
+    \caption{Evolución de los parámetros $a_R$ y $b_R$.}
+    \label{fig:parametros}
+\end{figure}
